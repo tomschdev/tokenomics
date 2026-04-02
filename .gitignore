@@ -10,6 +10,11 @@ states/
 *.dbg.json
 *.tsbuildinfo
 
+# Foundry
+incentivefactory/out/
+incentivefactory/cache/
+incentivefactory/broadcast/
+
 # Optional
 .env
 .env.local

@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Incentive Factory — Observability Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #1a1d23;
+    --bg-panel: #22262e;
+    --bg-panel-header: #2a2f38;
+    --bg-input: #181b20;
+    --border: #333840;
+    --text-primary: #e0e4ea;
+    --text-secondary: #8b929e;
+    --text-muted: #5a6270;
+    --green: #10b981;
+    --green-dim: #065f46;
+    --blue: #3b82f6;
+    --blue-dim: #1e3a5f;
+    --amber: #f59e0b;
+    --amber-dim: #78350f;
+    --red: #ef4444;
+    --red-dim: #7f1d1d;
+    --purple: #a855f7;
+    --purple-dim: #581c87;
+    --orange: #f97316;
+    --orange-dim: #7c2d12;
+    --cyan: #06b6d4;
+    --teal: #14b8a6;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 48px 1fr 140px;
+    grid-template-areas:
+      "header header"
+      "sidebar main"
+      "prompt prompt";
+    height: 100vh;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  .header {
+    grid-area: header;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-title .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .header-badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text-muted);
+    background: var(--bg-base);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sim-status {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text-secondary);
+  }
+  .sim-status .step-label { color: var(--cyan); }
+
+  /* ── Sidebar (Controls) ─────────────────── */
+  .sidebar {
+    grid-area: sidebar;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .control-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .control-group {
+    margin-bottom: 12px;
+  }
+  .control-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .control-group .value-display {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--cyan);
+    float: right;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--bg-base);
+    border-radius: 2px;
+    outline: none;
+    margin-top: 4px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--cyan);
+    cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+  select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .btn:hover { background: var(--bg-panel-header); border-color: var(--text-muted); }
+  .btn-primary { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+  .btn-primary:hover { background: var(--blue); color: #fff; }
+  .btn-danger { border-color: var(--red-dim); color: var(--red); }
+  .btn-danger:hover { background: var(--red-dim); }
+
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .preset-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .preset-btn:hover { background: var(--bg-panel-header); color: var(--text-primary); border-color: var(--text-muted); }
+  .preset-btn.active { border-color: var(--cyan); color: var(--cyan); }
+
+  /* ── Main Dashboard ─────────────────────── */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Dashboard Rows */
+  .dash-row {
+    display: flex;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  /* Panels */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    padding: 8px 12px;
+    background: var(--bg-panel-header);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-body {
+    padding: 12px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  /* ── Metric Cards ───────────────────────── */
+  .metric-card {
+    flex: 1;
+    min-width: 0;
+  }
+  .metric-card .panel-body {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--mono);
+    line-height: 1;
+  }
+  .metric-unit {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+  .metric-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+  .metric-value.green { color: var(--green); }
+  .metric-value.blue { color: var(--blue); }
+  .metric-value.amber { color: var(--amber); }
+  .metric-value.red { color: var(--red); }
+  .metric-value.purple { color: var(--purple); }
+  .metric-value.cyan { color: var(--cyan); }
+
+  /* Gauge */
+  .gauge-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .gauge-bar-bg {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-base);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .gauge-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease, background 0.6s ease;
+  }
+
+  /* ── Charts ─────────────────────────────── */
+  .chart-panel { flex: 1; min-width: 0; }
+  .chart-panel .panel-body { padding: 8px; }
+  canvas { width: 100% !important; height: 100% !important; display: block; }
+
+  /* ── Flow Diagram ───────────────────────── */
+  .flow-panel { flex: 2; }
+  .flow-panel .panel-body { padding: 8px; position: relative; }
+
+  /* ── Scheme Table ───────────────────────── */
+  .table-panel { flex: 1; }
+  .table-panel .panel-body { padding: 0; align-items: stretch; }
+  .scheme-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .scheme-table th {
+    text-align: left;
+    padding: 8px 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel-header);
+  }
+  .scheme-table td {
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .status-active { background: var(--green-dim); color: var(--green); }
+  .status-paused { background: var(--amber-dim); color: var(--amber); }
+
+  /* ── Event Log ──────────────────────────── */
+  .event-panel { flex: 1; }
+  .event-panel .panel-body {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-y: auto;
+  }
+  .event-log {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .event-entry {
+    display: flex;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(51,56,64,0.5);
+    align-items: flex-start;
+    gap: 8px;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+  .event-entry:hover { background: rgba(255,255,255,0.02); }
+  .event-block {
+    color: var(--text-muted);
+    min-width: 56px;
+    font-size: 10px;
+  }
+  .event-time {
+    color: var(--text-muted);
+    min-width: 64px;
+    font-size: 10px;
+  }
+  .event-type {
+    font-weight: 600;
+    min-width: 130px;
+    font-size: 10px;
+  }
+  .event-detail {
+    color: var(--text-secondary);
+    flex: 1;
+    font-size: 10px;
+  }
+  .event-type.scheme-created { color: var(--green); }
+  .event-type.activity-recorded { color: var(--blue); }
+  .event-type.deposited { color: var(--orange); }
+  .event-type.redeemed { color: var(--purple); }
+  .event-type.released { color: var(--purple); }
+  .event-type.scheme-paused { color: var(--red); }
+
+  /* ── Prompt Output ──────────────────────── */
+  .prompt-area {
+    grid-area: prompt;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .prompt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: var(--bg-panel-header);
+    border-bottom: 1px solid var(--border);
+  }
+  .prompt-header span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .copy-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+  .prompt-content {
+    flex: 1;
+    padding: 10px 16px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    font-family: var(--sans);
+  }
+
+  /* ── Scrollbar ──────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-title">
+    <span class="dot" id="statusDot"></span>
+    Incentive Factory — Observability
+  </div>
+  <span class="header-badge">Polygon PoS · Chain 137</span>
+  <span class="header-badge">Scheme #0 — Stellenbosch E-Scooter</span>
+  <div class="header-right">
+    <span class="sim-status">Step: <span class="step-label" id="stepLabel">Idle</span></span>
+    <span class="sim-status" id="blockDisplay">Block #0</span>
+  </div>
+</div>
+
+<!-- Sidebar Controls -->
+<div class="sidebar">
+  <div class="control-section">
+    <h3>Simulation</h3>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button class="btn btn-danger" id="resetBtn" onclick="resetSim()">↺ Reset</button>
+    </div>
+    <div class="control-group" style="margin-top: 12px;">
+      <label>Speed <span class="value-display" id="speedVal">1.0x</span></label>
+      <input type="range" id="speedSlider" min="0.25" max="4" step="0.25" value="1" oninput="updateSpeed()">
+    </div>
+  </div>
+
+  <div class="control-section">
+    <h3>Parameters</h3>
+    <div class="control-group">
+      <label>Subsidy Rate <span class="value-display" id="rateVal">R1.50/km</span></label>
+      <input type="range" id="rateSlider" min="50" max="500" step="10" value="150" oninput="updateRate()">
+    </div>
+    <div class="control-group">
+      <label>Initial Vault Funding</label>
+      <select id="vaultFunding" onchange="updateVaultFunding()">
+        <option value="5000000">R50,000</option>
+        <option value="10000000" selected>R100,000</option>
+        <option value="25000000">R250,000</option>
+        <option value="50000000">R500,000</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Scheme</label>
+      <select id="schemeSelect">
+        <option value="0">#0 — Stellenbosch E-Scooter</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="control-section">
+    <h3>Presets</h3>
+    <div class="preset-list">
+      <button class="preset-btn active" onclick="applyPreset('pilot')">Pilot — 3-day trial (default)</button>
+      <button class="preset-btn" onclick="applyPreset('highrate')">High Subsidy — R4/km stress test</button>
+      <button class="preset-btn" onclick="applyPreset('lowfund')">Underfunded — vault drain scenario</button>
+      <button class="preset-btn" onclick="applyPreset('scale')">Scale — high volume, low rate</button>
+    </div>
+  </div>
+
+  <div class="control-section">
+    <h3>Activity Pattern</h3>
+    <div class="control-group">
+      <label>Day 1 (km) <span class="value-display" id="d1Val">500</span></label>
+      <input type="range" id="d1Slider" min="0" max="5000" step="50" value="500" oninput="updateDayVal(1)">
+    </div>
+    <div class="control-group">
+      <label>Day 2 (km) <span class="value-display" id="d2Val">750</span></label>
+      <input type="range" id="d2Slider" min="0" max="5000" step="50" value="750" oninput="updateDayVal(2)">
+    </div>
+    <div class="control-group">
+      <label>Day 3 (km) <span class="value-display" id="d3Val">300</span></label>
+      <input type="range" id="d3Slider" min="0" max="5000" step="50" value="300" oninput="updateDayVal(3)">
+    </div>
+  </div>
+</div>
+
+<!-- Main Dashboard -->
+<div class="main" id="dashboard">
+
+  <!-- Row 1: Key Metrics -->
+  <div class="dash-row" style="max-height: 120px;">
+    <div class="panel metric-card" id="vaultHealthPanel">
+      <div class="panel-header">Vault Health <span id="vaultPctBadge"></span></div>
+      <div class="panel-body">
+        <div class="gauge-wrap">
+          <div class="metric-value green" id="vaultValue">R100,000</div>
+          <div class="gauge-bar-bg"><div class="gauge-bar-fill" id="vaultGauge" style="width:100%;background:var(--green)"></div></div>
+          <div class="metric-sub" id="vaultPct">100.0% remaining</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel metric-card">
+      <div class="panel-header">Total Activity</div>
+      <div class="panel-body">
+        <div class="metric-value blue" id="totalActivity">0</div>
+        <div class="metric-unit">km recorded</div>
+      </div>
+    </div>
+    <div class="panel metric-card">
+      <div class="panel-header">Total Redeemed</div>
+      <div class="panel-body">
+        <div class="metric-value purple" id="totalRedeemed">0</div>
+        <div class="metric-unit">km settled</div>
+      </div>
+    </div>
+    <div class="panel metric-card">
+      <div class="panel-header">Pending PoS Tokens</div>
+      <div class="panel-body">
+        <div class="metric-value cyan" id="pendingTokens">0</div>
+        <div class="metric-unit">unredeemed</div>
+      </div>
+    </div>
+    <div class="panel metric-card">
+      <div class="panel-header">Runway</div>
+      <div class="panel-body">
+        <div class="metric-value green" id="runwayValue">∞</div>
+        <div class="metric-unit" id="runwayUnit">days at current rate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Charts -->
+  <div class="dash-row" style="flex: 1; min-height: 180px;">
+    <div class="panel chart-panel">
+      <div class="panel-header">Activity Volume / Day</div>
+      <div class="panel-body"><canvas id="activityChart"></canvas></div>
+    </div>
+    <div class="panel chart-panel">
+      <div class="panel-header">Vault Balance Over Time</div>
+      <div class="panel-body"><canvas id="vaultChart"></canvas></div>
+    </div>
+    <div class="panel chart-panel">
+      <div class="panel-header">Cumulative Settlement (ZAR)</div>
+      <div class="panel-body"><canvas id="settlementChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Flow + Scheme Table -->
+  <div class="dash-row" style="flex: 1; min-height: 160px;">
+    <div class="panel flow-panel">
+      <div class="panel-header">Token Flow Pipeline</div>
+      <div class="panel-body"><canvas id="flowCanvas"></canvas></div>
+    </div>
+    <div class="panel table-panel">
+      <div class="panel-header">Scheme Status</div>
+      <div class="panel-body">
+        <table class="scheme-table">
+          <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Provider</th><th>Rate</th></tr></thead>
+          <tbody id="schemeTableBody">
+            <tr>
+              <td>#0</td>
+              <td>Stellenbosch E-Scooter</td>
+              <td><span class="status-badge status-active" id="schemeStatus">ACTIVE</span></td>
+              <td>0x3C44...71d0</td>
+              <td id="schemeRateCell">R1.50/km</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Event Log -->
+  <div class="dash-row" style="flex: 1; min-height: 160px;">
+    <div class="panel event-panel" style="flex: 1;">
+      <div class="panel-header">Event Stream <span id="eventCount" style="color:var(--text-secondary)">0 events</span></div>
+      <div class="panel-body">
+        <div class="event-log" id="eventLog"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Prompt Output -->
+<div class="prompt-area">
+  <div class="prompt-header">
+    <span>Prompt Output — Simulation Summary</span>
+    <button class="copy-btn" id="copyBtn" onclick="copyPrompt()">Copy</button>
+  </div>
+  <div class="prompt-content" id="promptOutput">Press Play to run the simulation...</div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+const DEFAULTS = {
+  subsidyRate: 150,
+  vaultFunding: 10000000,
+  days: [500, 750, 300],
+  speed: 1,
+};
+
+const state = {
+  subsidyRate: 150,
+  vaultFunding: 10000000,
+  days: [500, 750, 300],
+  speed: 1,
+  // Simulation runtime state
+  playing: false,
+  step: -1, // -1=idle, 0..N = sim steps
+  totalRecorded: 0,
+  totalRedeemed: 0,
+  vaultBalance: 10000000,
+  pendingPoS: 0,
+  events: [],
+  blockNum: 1000000,
+  dailyRecorded: [],    // array of {day, amount}
+  vaultHistory: [],     // array of {label, balance}
+  settlementHistory: [], // array of {label, cumulative}
+  cumulativeSettlement: 0,
+  avgDailyKm: 0,
+  timer: null,
+  animFrame: null,
+};
+
+// Simulation step definitions
+function getSteps() {
+  const r = state.subsidyRate;
+  const d = state.days;
+  const totalKm = d[0] + d[1] + d[2];
+  const payout = totalKm * r;
+  return [
+    { type: 'deploy', label: 'Deploy Contracts', detail: 'MockZAR + SettlementVault + IncentiveFactory' },
+    { type: 'scheme', label: 'Create Scheme #0', detail: `Stellenbosch E-Scooter · R${(r/100).toFixed(2)}/km` },
+    { type: 'deposit', label: 'Fund Vault', detail: `Municipality deposits R${fmt(state.vaultFunding)}` },
+    { type: 'activity', label: 'Day 1 — Record Activity', detail: `${fmtN(d[0])} km reported by oracle`, amount: d[0], day: 1 },
+    { type: 'activity', label: 'Day 2 — Record Activity', detail: `${fmtN(d[1])} km reported by oracle`, amount: d[1], day: 2 },
+    { type: 'activity', label: 'Day 3 — Record Activity', detail: `${fmtN(d[2])} km reported by oracle`, amount: d[2], day: 3 },
+    { type: 'redeem', label: 'Provider Redeems', detail: `${fmtN(totalKm)} km → R${fmt(payout)} settlement`, amount: totalKm, payout },
+    { type: 'done', label: 'Simulation Complete', detail: `Vault: R${fmt(state.vaultFunding - payout)} remaining` },
+  ];
+}
+
+// ── Helpers ────────────────────────────────────────────
+function fmt(cents) {
+  return (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtN(n) {
+  return n.toLocaleString('en-ZA');
+}
+function fmtR(cents) {
+  return 'R' + (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── Controls ───────────────────────────────────────────
+function updateSpeed() {
+  state.speed = parseFloat(document.getElementById('speedSlider').value);
+  document.getElementById('speedVal').textContent = state.speed + 'x';
+}
+function updateRate() {
+  state.subsidyRate = parseInt(document.getElementById('rateSlider').value);
+  document.getElementById('rateVal').textContent = `R${(state.subsidyRate/100).toFixed(2)}/km`;
+  document.getElementById('schemeRateCell').textContent = `R${(state.subsidyRate/100).toFixed(2)}/km`;
+  renderAll();
+}
+function updateVaultFunding() {
+  state.vaultFunding = parseInt(document.getElementById('vaultFunding').value);
+  renderAll();
+}
+function updateDayVal(d) {
+  state.days[d-1] = parseInt(document.getElementById(`d${d}Slider`).value);
+  document.getElementById(`d${d}Val`).textContent = fmtN(state.days[d-1]);
+  renderAll();
+}
+
+function applyPreset(name) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  switch(name) {
+    case 'pilot':
+      setControls(150, 10000000, [500, 750, 300], 1); break;
+    case 'highrate':
+      setControls(400, 10000000, [500, 750, 300], 1.5); break;
+    case 'lowfund':
+      setControls(150, 5000000, [2000, 3000, 2500], 2); break;
+    case 'scale':
+      setControls(80, 50000000, [5000, 4500, 4000], 2); break;
+  }
+}
+function setControls(rate, funding, days, speed) {
+  state.subsidyRate = rate;
+  state.vaultFunding = funding;
+  state.days = [...days];
+  state.speed = speed;
+  document.getElementById('rateSlider').value = rate;
+  document.getElementById('rateVal').textContent = `R${(rate/100).toFixed(2)}/km`;
+  document.getElementById('schemeRateCell').textContent = `R${(rate/100).toFixed(2)}/km`;
+  document.getElementById('vaultFunding').value = funding;
+  document.getElementById('speedSlider').value = speed;
+  document.getElementById('speedVal').textContent = speed + 'x';
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`d${i+1}Slider`).value = days[i];
+    document.getElementById(`d${i+1}Val`).textContent = fmtN(days[i]);
+  }
+  resetSim();
+}
+
+// ── Simulation Engine ──────────────────────────────────
+function togglePlay() {
+  if (state.playing) {
+    pause();
+  } else {
+    play();
+  }
+}
+function play() {
+  if (state.step >= getSteps().length - 1) resetSimState();
+  state.playing = true;
+  document.getElementById('playBtn').innerHTML = '⏸ Pause';
+  document.getElementById('playBtn').classList.add('btn-primary');
+  document.getElementById('statusDot').style.background = 'var(--green)';
+  advanceStep();
+}
+function pause() {
+  state.playing = false;
+  clearTimeout(state.timer);
+  document.getElementById('playBtn').innerHTML = '▶ Play';
+  document.getElementById('statusDot').style.background = 'var(--amber)';
+}
+function resetSim() {
+  pause();
+  resetSimState();
+  renderAll();
+}
+function resetSimState() {
+  state.step = -1;
+  state.totalRecorded = 0;
+  state.totalRedeemed = 0;
+  state.vaultBalance = state.vaultFunding;
+  state.pendingPoS = 0;
+  state.events = [];
+  state.blockNum = 1000000;
+  state.dailyRecorded = [];
+  state.vaultHistory = [{ label: 'Init', balance: state.vaultFunding }];
+  state.settlementHistory = [{ label: 'Init', cumulative: 0 }];
+  state.cumulativeSettlement = 0;
+  state.avgDailyKm = 0;
+  document.getElementById('eventLog').innerHTML = '';
+  document.getElementById('stepLabel').textContent = 'Idle';
+  document.getElementById('statusDot').style.background = 'var(--text-muted)';
+}
+
+function advanceStep() {
+  if (!state.playing) return;
+  const steps = getSteps();
+  state.step++;
+  if (state.step >= steps.length) {
+    pause();
+    document.getElementById('stepLabel').textContent = 'Complete';
+    document.getElementById('statusDot').style.background = 'var(--green)';
+    state.playing = false;
+    document.getElementById('playBtn').innerHTML = '▶ Play';
+    return;
+  }
+
+  const s = steps[state.step];
+  state.blockNum += Math.floor(Math.random() * 5) + 1;
+  document.getElementById('blockDisplay').textContent = `Block #${state.blockNum.toLocaleString()}`;
+  document.getElementById('stepLabel').textContent = s.label;
+
+  // Apply step effects
+  switch(s.type) {
+    case 'deploy':
+      addEvent('SchemeCreated', s.detail, 'scheme-created', state.blockNum);
+      break;
+    case 'scheme':
+      addEvent('SchemeCreated', s.detail, 'scheme-created', state.blockNum);
+      break;
+    case 'deposit':
+      state.vaultBalance = state.vaultFunding;
+      state.vaultHistory = [{ label: 'Deposit', balance: state.vaultFunding }];
+      addEvent('Deposited', s.detail, 'deposited', state.blockNum);
+      break;
+    case 'activity':
+      state.totalRecorded += s.amount;
+      state.pendingPoS += s.amount;
+      state.dailyRecorded.push({ day: s.day, amount: s.amount });
+      state.vaultHistory.push({ label: `Day ${s.day}`, balance: state.vaultBalance });
+      state.settlementHistory.push({ label: `Day ${s.day}`, cumulative: state.cumulativeSettlement });
+      state.avgDailyKm = state.totalRecorded / state.dailyRecorded.length;
+      addEvent('ActivityRecorded', `${fmtN(s.amount)} km · provider 0x3C44...71d0`, 'activity-recorded', state.blockNum);
+      break;
+    case 'redeem':
+      const payout = s.payout;
+      state.totalRedeemed += s.amount;
+      state.pendingPoS -= s.amount;
+      state.vaultBalance -= payout;
+      state.cumulativeSettlement += payout;
+      state.vaultHistory.push({ label: 'Redeem', balance: state.vaultBalance });
+      state.settlementHistory.push({ label: 'Redeem', cumulative: state.cumulativeSettlement });
+      addEvent('Redeemed', `${fmtN(s.amount)} km burned · ${fmtR(payout)} paid`, 'redeemed', state.blockNum);
+      addEvent('Released', `${fmtR(payout)} → 0x3C44...71d0`, 'released', state.blockNum);
+      break;
+    case 'done':
+      addEvent('SimComplete', s.detail, 'scheme-created', state.blockNum);
+      break;
+  }
+
+  renderAll();
+
+  // Schedule next step
+  const delay = Math.max(200, 1200 / state.speed);
+  state.timer = setTimeout(advanceStep, delay);
+}
+
+function addEvent(type, detail, cssClass, block) {
+  const ts = new Date();
+  const timeStr = ts.toLocaleTimeString('en-ZA', { hour12: false });
+  state.events.push({ type, detail, cssClass, block, time: timeStr });
+
+  const log = document.getElementById('eventLog');
+  const entry = document.createElement('div');
+  entry.className = 'event-entry';
+  entry.innerHTML = `
+    <span class="event-block">#${block.toLocaleString()}</span>
+    <span class="event-time">${timeStr}</span>
+    <span class="event-type ${cssClass}">${type}</span>
+    <span class="event-detail">${detail}</span>
+  `;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+  document.getElementById('eventCount').textContent = `${state.events.length} events`;
+}
+
+// ── Render ─────────────────────────────────────────────
+function renderAll() {
+  renderMetrics();
+  renderActivityChart();
+  renderVaultChart();
+  renderSettlementChart();
+  renderFlowDiagram();
+  updatePrompt();
+}
+
+function renderMetrics() {
+  const pct = state.vaultFunding > 0 ? (state.vaultBalance / state.vaultFunding) * 100 : 0;
+  const vaultEl = document.getElementById('vaultValue');
+  const gaugeEl = document.getElementById('vaultGauge');
+  const pctEl = document.getElementById('vaultPct');
+
+  vaultEl.textContent = fmtR(state.vaultBalance);
+  pctEl.textContent = `${pct.toFixed(1)}% remaining`;
+  gaugeEl.style.width = Math.max(0, pct) + '%';
+
+  if (pct > 20) {
+    vaultEl.className = 'metric-value green';
+    gaugeEl.style.background = 'var(--green)';
+  } else if (pct > 5) {
+    vaultEl.className = 'metric-value amber';
+    gaugeEl.style.background = 'var(--amber)';
+  } else {
+    vaultEl.className = 'metric-value red';
+    gaugeEl.style.background = 'var(--red)';
+  }
+
+  document.getElementById('totalActivity').textContent = fmtN(state.totalRecorded);
+  document.getElementById('totalRedeemed').textContent = fmtN(state.totalRedeemed);
+  document.getElementById('pendingTokens').textContent = fmtN(state.pendingPoS);
+
+  // Runway calculation
+  const runwayEl = document.getElementById('runwayValue');
+  const runwayUnitEl = document.getElementById('runwayUnit');
+  if (state.avgDailyKm > 0 && state.vaultBalance > 0) {
+    const dailyCost = state.avgDailyKm * state.subsidyRate;
+    const days = Math.floor(state.vaultBalance / dailyCost);
+    runwayEl.textContent = days;
+    runwayUnitEl.textContent = `days at ${fmtN(Math.round(state.avgDailyKm))} km/day`;
+    if (days > 30) {
+      runwayEl.className = 'metric-value green';
+    } else if (days > 7) {
+      runwayEl.className = 'metric-value amber';
+    } else {
+      runwayEl.className = 'metric-value red';
+    }
+  } else {
+    runwayEl.textContent = '∞';
+    runwayEl.className = 'metric-value green';
+    runwayUnitEl.textContent = 'days at current rate';
+  }
+}
+
+// ── Charts (Canvas) ────────────────────────────────────
+function renderActivityChart() {
+  const canvas = document.getElementById('activityChart');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const days = state.days;
+  const maxVal = Math.max(...days, 1);
+  const barW = Math.min(60, (w - 80) / 3);
+  const chartH = h - 40;
+  const baseY = h - 20;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(51,56,64,0.6)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = baseY - (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(40, y);
+    ctx.lineTo(w - 10, y);
+    ctx.stroke();
+    ctx.fillStyle = '#5a6270';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtN(Math.round(maxVal * i / 4)), 36, y + 3);
+  }
+
+  // Bars
+  const recorded = state.dailyRecorded.map(d => d.day);
+  for (let i = 0; i < 3; i++) {
+    const x = 50 + i * ((w - 70) / 3) + ((w - 70) / 3 - barW) / 2;
+    const barH = (days[i] / maxVal) * chartH;
+    const isRecorded = recorded.includes(i + 1);
+
+    // Bar
+    ctx.fillStyle = isRecorded ? 'rgba(59,130,246,0.85)' : 'rgba(59,130,246,0.2)';
+    ctx.beginPath();
+    roundRect(ctx, x, baseY - barH, barW, barH, 3);
+    ctx.fill();
+
+    // Value on top
+    if (isRecorded) {
+      ctx.fillStyle = '#3b82f6';
+      ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(fmtN(days[i]), x + barW / 2, baseY - barH - 6);
+    }
+
+    // Day label
+    ctx.fillStyle = '#8b929e';
+    ctx.font = '10px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Day ${i + 1}`, x + barW / 2, baseY + 14);
+  }
+}
+
+function renderVaultChart() {
+  const canvas = document.getElementById('vaultChart');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const data = state.vaultHistory;
+  if (data.length < 1) return;
+
+  const maxVal = state.vaultFunding;
+  const chartH = h - 40;
+  const baseY = h - 20;
+  const chartW = w - 60;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(51,56,64,0.6)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = baseY - (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(50, y);
+    ctx.lineTo(w - 10, y);
+    ctx.stroke();
+    ctx.fillStyle = '#5a6270';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('R' + fmt(Math.round(maxVal * i / 4)), 46, y + 3);
+  }
+
+  if (data.length < 2) return;
+
+  // Line
+  const stepX = chartW / (data.length - 1);
+  ctx.beginPath();
+  ctx.strokeStyle = 'var(--green)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < data.length; i++) {
+    const x = 55 + i * stepX;
+    const y = baseY - (data[i].balance / maxVal) * chartH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Fill under line
+  ctx.lineTo(55 + (data.length - 1) * stepX, baseY);
+  ctx.lineTo(55, baseY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(16,185,129,0.1)';
+  ctx.fill();
+
+  // Points + labels
+  for (let i = 0; i < data.length; i++) {
+    const x = 55 + i * stepX;
+    const y = baseY - (data[i].balance / maxVal) * chartH;
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#8b929e';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(data[i].label, x, baseY + 14);
+  }
+}
+
+function renderSettlementChart() {
+  const canvas = document.getElementById('settlementChart');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const data = state.settlementHistory;
+  if (data.length < 1) return;
+
+  const totalKm = state.days[0] + state.days[1] + state.days[2];
+  const maxPayout = totalKm * state.subsidyRate;
+  const maxVal = Math.max(maxPayout, state.cumulativeSettlement, 1);
+  const chartH = h - 40;
+  const baseY = h - 20;
+  const chartW = w - 60;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(51,56,64,0.6)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = baseY - (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(50, y);
+    ctx.lineTo(w - 10, y);
+    ctx.stroke();
+    ctx.fillStyle = '#5a6270';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('R' + fmt(Math.round(maxVal * i / 4)), 46, y + 3);
+  }
+
+  if (data.length < 2) return;
+
+  const stepX = chartW / (data.length - 1);
+
+  // Area fill
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = 55 + i * stepX;
+    const y = baseY - (data[i].cumulative / maxVal) * chartH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(55 + (data.length - 1) * stepX, baseY);
+  ctx.lineTo(55, baseY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(168,85,247,0.15)';
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < data.length; i++) {
+    const x = 55 + i * stepX;
+    const y = baseY - (data[i].cumulative / maxVal) * chartH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Points + labels
+  for (let i = 0; i < data.length; i++) {
+    const x = 55 + i * stepX;
+    const y = baseY - (data[i].cumulative / maxVal) * chartH;
+    ctx.fillStyle = '#a855f7';
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8b929e';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(data[i].label, x, baseY + 14);
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+}
+
+// ── Token Flow Diagram ─────────────────────────────────
+function renderFlowDiagram() {
+  const canvas = document.getElementById('flowCanvas');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const nodes = [
+    { label: 'Oracle\nReporter', x: 0.08, y: 0.5, color: '#06b6d4', icon: '📡' },
+    { label: 'Record\nActivity', x: 0.25, y: 0.5, color: '#3b82f6', icon: '📝' },
+    { label: 'Mint PoS\nTokens', x: 0.42, y: 0.3, color: '#10b981', icon: '🪙' },
+    { label: 'Provider\nBalance', x: 0.58, y: 0.3, color: '#14b8a6', icon: '👛' },
+    { label: 'Redeem\n& Burn', x: 0.75, y: 0.3, color: '#a855f7', icon: '🔥' },
+    { label: 'Vault\nRelease', x: 0.58, y: 0.7, color: '#f97316', icon: '🏦' },
+    { label: 'ZAR\nSettlement', x: 0.92, y: 0.5, color: '#f59e0b', icon: '💰' },
+  ];
+
+  const edges = [
+    [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [4, 6], [5, 6],
+  ];
+
+  // Determine which nodes are "active" based on sim step
+  const activeUpTo = (() => {
+    if (state.step < 0) return -1;
+    if (state.step <= 2) return 1;   // deploy/scheme/deposit → first 2 nodes
+    if (state.step <= 5) return 3;   // activity days → up to Provider Balance
+    if (state.step >= 6) return 6;   // redeem/done → all
+    return -1;
+  })();
+
+  // Draw edges
+  edges.forEach(([a, b]) => {
+    const na = nodes[a], nb = nodes[b];
+    const ax = na.x * w, ay = na.y * h;
+    const bx = nb.x * w, by = nb.y * h;
+    const active = a <= activeUpTo && b <= activeUpTo;
+
+    ctx.beginPath();
+    ctx.strokeStyle = active ? 'rgba(6,182,212,0.5)' : 'rgba(51,56,64,0.5)';
+    ctx.lineWidth = active ? 2 : 1;
+    ctx.setLineDash(active ? [] : [4, 4]);
+    ctx.moveTo(ax, ay);
+    // Curved edges
+    const cx1 = (ax + bx) / 2;
+    const cy1 = (ay + by) / 2 - 10;
+    ctx.quadraticCurveTo(cx1, cy1, bx, by);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Arrow head
+    if (active) {
+      const angle = Math.atan2(by - cy1, bx - cx1);
+      ctx.fillStyle = 'rgba(6,182,212,0.7)';
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - 8 * Math.cos(angle - 0.4), by - 8 * Math.sin(angle - 0.4));
+      ctx.lineTo(bx - 8 * Math.cos(angle + 0.4), by - 8 * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+  });
+
+  // Draw nodes
+  nodes.forEach((n, i) => {
+    const x = n.x * w, y = n.y * h;
+    const active = i <= activeUpTo;
+    const r = 22;
+
+    // Glow for active
+    if (active && i === activeUpTo) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 6, 0, Math.PI * 2);
+      ctx.fillStyle = n.color + '20';
+      ctx.fill();
+    }
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = active ? n.color + '30' : 'rgba(34,38,46,0.8)';
+    ctx.fill();
+    ctx.strokeStyle = active ? n.color : 'rgba(51,56,64,0.6)';
+    ctx.lineWidth = active ? 2 : 1;
+    ctx.stroke();
+
+    // Icon
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.icon, x, y + 5);
+
+    // Label below
+    ctx.fillStyle = active ? n.color : '#5a6270';
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    const lines = n.label.split('\n');
+    lines.forEach((line, li) => {
+      ctx.fillText(line, x, y + r + 12 + li * 12);
+    });
+  });
+
+  // Values on edges if active
+  if (state.totalRecorded > 0) {
+    ctx.fillStyle = '#8b929e';
+    ctx.font = '9px SF Mono, Consolas, monospace';
+    ctx.textAlign = 'center';
+    const midX = nodes[1].x * w + (nodes[2].x * w - nodes[1].x * w) * 0.5;
+    const midY = nodes[1].y * h - 20;
+    ctx.fillText(`${fmtN(state.totalRecorded)} km`, midX, midY);
+  }
+  if (state.cumulativeSettlement > 0) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 9px SF Mono, Consolas, monospace';
+    ctx.textAlign = 'center';
+    const midX = nodes[5].x * w + (nodes[6].x * w - nodes[5].x * w) * 0.5;
+    const midY = nodes[5].y * h + 6;
+    ctx.fillText(fmtR(state.cumulativeSettlement), midX, midY);
+  }
+}
+
+// ── Prompt Output ──────────────────────────────────────
+function updatePrompt() {
+  const parts = [];
+  const totalKm = state.days[0] + state.days[1] + state.days[2];
+  const totalPayout = totalKm * state.subsidyRate;
+  const remaining = state.vaultFunding - totalPayout;
+  const remainPct = ((remaining / state.vaultFunding) * 100).toFixed(1);
+
+  parts.push(`Incentive Factory simulation: Stellenbosch E-Scooter Subsidy (Scheme #0) on Polygon PoS.`);
+  parts.push('');
+
+  // Non-default parameters
+  const diffs = [];
+  if (state.subsidyRate !== DEFAULTS.subsidyRate) {
+    diffs.push(`subsidy rate adjusted to R${(state.subsidyRate/100).toFixed(2)}/km (default: R1.50/km)`);
+  }
+  if (state.vaultFunding !== DEFAULTS.vaultFunding) {
+    diffs.push(`vault funding set to R${fmt(state.vaultFunding)} (default: R100,000)`);
+  }
+  if (JSON.stringify(state.days) !== JSON.stringify(DEFAULTS.days)) {
+    diffs.push(`custom activity pattern: [${state.days.map(d => fmtN(d) + ' km').join(', ')}] over 3 days (default: 500, 750, 300)`);
+  }
+  if (diffs.length > 0) {
+    parts.push('Parameters changed from defaults:');
+    diffs.forEach(d => parts.push(`  - ${d}`));
+    parts.push('');
+  }
+
+  parts.push(`Settlement economics over 3 days:`);
+  parts.push(`  - Total activity: ${fmtN(totalKm)} km across 3 days`);
+  parts.push(`  - Subsidy rate: R${(state.subsidyRate/100).toFixed(2)} per km`);
+  parts.push(`  - Total payout: ${fmtR(totalPayout)}`);
+  parts.push(`  - Vault balance after settlement: ${fmtR(remaining)} (${remainPct}% of ${fmtR(state.vaultFunding)})`);
+
+  if (state.avgDailyKm > 0) {
+    const dailyCost = state.avgDailyKm * state.subsidyRate;
+    const runway = Math.floor(remaining / dailyCost);
+    parts.push(`  - Average daily activity: ${fmtN(Math.round(state.avgDailyKm))} km/day`);
+    parts.push(`  - Estimated runway: ${runway} days at current burn rate`);
+  }
+
+  if (remaining < 0) {
+    parts.push('');
+    parts.push(`⚠ ALERT: Vault underfunded — payout exceeds vault balance by ${fmtR(Math.abs(remaining))}. The redeem transaction would revert on-chain.`);
+  } else if (parseFloat(remainPct) < 5) {
+    parts.push('');
+    parts.push(`⚠ WARNING: Vault critically low (${remainPct}%). Municipality should deposit additional funds.`);
+  } else if (parseFloat(remainPct) < 20) {
+    parts.push('');
+    parts.push(`⚠ CAUTION: Vault below 20% (${remainPct}%). Consider scheduling a top-up.`);
+  }
+
+  document.getElementById('promptOutput').textContent = parts.join('\n');
+}
+
+function copyPrompt() {
+  const text = document.getElementById('promptOutput').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ── Resize handling ────────────────────────────────────
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderAll, 100);
+});
+
+// ── Init ───────────────────────────────────────────────
+resetSimState();
+renderAll();
+
+// Auto-play after brief delay
+setTimeout(() => {
+  play();
+}, 800);
+</script>
+</body>
+</html>
