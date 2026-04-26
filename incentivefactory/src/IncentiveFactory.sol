@@ -52,12 +52,11 @@ contract IncentiveFactory is ERC1155, AccessControl {
     /// @param vault SettlementVault holding escrowed stablecoin for this scheme
     /// @param subsidyRate Stablecoin units paid per activity unit
     /// @return schemeId The ID of the newly created scheme (also the ERC-1155 token ID)
-    function createScheme(
-        string calldata name,
-        address provider,
-        address vault,
-        uint256 subsidyRate
-    ) external onlyRole(SCHEME_ADMIN_ROLE) returns (uint256 schemeId) {
+    function createScheme(string calldata name, address provider, address vault, uint256 subsidyRate)
+        external
+        onlyRole(SCHEME_ADMIN_ROLE)
+        returns (uint256 schemeId)
+    {
         schemeId = nextSchemeId++;
         schemes[schemeId] = Scheme({
             name: name,
@@ -129,12 +128,7 @@ contract IncentiveFactory is ERC1155, AccessControl {
     }
 
     /// @dev Required override for AccessControl + ERC1155 both implementing supportsInterface.
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC1155, AccessControl)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
