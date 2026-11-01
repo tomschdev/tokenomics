@@ -8,5 +8,5 @@ js = rd('src', 'sha.js') + '\n' + rd('src', 'btc.js') + '\nconst SNAP = ' + json
 out = src.replace('/*__JS__*/', js)
 os.makedirs(os.path.join(here, 'dist'), exist_ok=True)
 open(os.path.join(here, 'dist', 'artifact-page.html'), 'w', encoding='utf-8').write(out)
-open(os.path.join(here, 'dist', 'bitcoin-pow-workshop.html'), 'w', encoding='utf-8').write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + out + '</body></html>')
+open(os.path.join(here, 'dist', 'bitcoin-pow-workshop.html'), 'w', encoding='utf-8').write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"></head><body>' + out + '</body></html>')
 print('built', len(out), 'bytes')
