@@ -1,39 +1,41 @@
 // ============================================================ environment styling: floating islands, ground, rainbows, sparkles
-function buildIsland(parent, x0, x1, z0, z1, topY, seed) {
-  const top = [], dirt = [], stone = [];
-  const w = x1 - x0, d = z1 - z0;
-  for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
-    // rounded corners on the top layer
-    const cx = Math.min(x - x0, x1 - x), cz = Math.min(z - z0, z1 - z); if (cx + cz < 2 && hash2(x + seed, z) > 0.3) continue;
-    top.push([x, topY - 0.5, z]);
-    const depthMax = 2 + Math.floor(Math.min(cx, cz) * 0.9 + hash2(x * 3 + seed, z * 7) * 2.5);
-    for (let k = 1; k <= Math.min(depthMax, 9); k++) (k > 2 && hash2(x + k, z + seed) > 0.55 ? stone : dirt).push([x, topY - 0.5 - k, z]);
-  }
-  const inst = (arr, mat) => { if (!arr.length) return; const m = new THREE.InstancedMesh(V.geo.cube, mat, arr.length); const o = new THREE.Object3D(); arr.forEach((p, k) => { o.position.set(p[0], p[1], p[2]); o.updateMatrix(); m.setMatrixAt(k, o.matrix); }); parent.add(m); };
-  inst(top, V.mat.grass); inst(dirt, V.mat.dirt); inst(stone, V.mat.stone);
-  // a few tufts of grass and a voxel bush
-  for (let k = 0; k < Math.round(w * d / 40); k++) {
-    const x = x0 + 1 + Math.floor(hash2(k, seed) * (w - 2)), z = z0 + 1 + Math.floor(hash2(seed, k) * (d - 2));
-    const b = new THREE.Mesh(V.geo.cube, V.mat.leaf); b.scale.set(0.6, 0.5, 0.6); b.position.set(x + 0.3, topY + 0.25, z + 0.3); b.userData.deco = true; parent.add(b);
-  }
+// Islands, valley and trees come from the SkyStyle module (pixel-art sky look).
+// x0..x1 / z0..z1 are inclusive 1-unit cells in the parent's space; the grass surface sits at topY.
+// spots (parent coords) place trees and grass; without them the island gets the default pair of trees.
+// Background scenery lives on its own layer and is drawn as pixel art (pixel size 4); the nodes, wallet platform and board stay sharp.
+const BG_LAYER = 2;
+function toBg(o) { o.traverse(c => c.layers.set(BG_LAYER)); return o; }
+function buildIsland(parent, x0, x1, z0, z1, topY, seed, spots) {
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const isl = SkyStyle.makeIsland(seed, { w: x1 - x0 + 1, d: z1 - z0 + 1, spots: spots ? spots.map(p => Object.assign({}, p, { x: p.x - cx, z: p.z - cz })) : null });
+  isl.position.set(cx, topY - isl.userData.top, cz); parent.add(isl); return isl;
 }
 function buildGround() {
-  const T = V.tex;
-  const grassBig = T.grassTop.clone(); grassBig.needsUpdate = true; grassBig.wrapS = grassBig.wrapT = THREE.RepeatWrapping; grassBig.repeat.set(90, 90);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), new THREE.MeshLambertMaterial({ map: grassBig })); ground.rotation.x = -Math.PI / 2; ground.position.y = -16; V.scene.add(ground);
-  // voxel cliffs and trees around the edge, like a blocky valley
-  const cliffs = [], trunks = [], leaves = [];
+  const P = SkyStyle.PAL;
+  const grassBig = pixTex(16, (g, s) => noiseFill(g, s, [P.grass, P.grass, P.grass, '#66ae4b', '#66ae4b', '#74bb53'], 2));
+  grassBig.wrapS = grassBig.wrapT = THREE.RepeatWrapping; grassBig.repeat.set(24, 24);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), new THREE.MeshStandardMaterial({ map: grassBig, roughness: 1, metalness: 0 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.y = -16; ground.receiveShadow = true; V.scene.add(toBg(ground));
+  // a handful of tree shapes, reused around the valley
+  const kinds = [0, 1, 2, 3, 4, 5].map(k => SkyStyle.makeTree(500 + k, { height: 1.1 + (k % 3) * 0.15 }));
+  const tree = (k, x, y, z, s) => { const t = kinds[k % kinds.length].clone(); t.position.set(x, y, z); t.scale.setScalar(s); t.rotation.y = hash2(k, 31) * 6.28; V.scene.add(toBg(t)); };
+  // earth cliffs with a grass cap around the edge, like a valley wall
+  const parts = [], dl = new THREE.Color(P.dirtLight), dd = new THREE.Color(P.dirtDeep), gm = new THREE.Color(P.grass), gd = new THREE.Color(P.grassDark);
   for (let k = 0; k < 70; k++) {
     const a = k / 70 * Math.PI * 2 + hash2(k, 3) * 0.08, r = 62 + hash2(k, 4) * 26;
-    const x = Math.round(Math.cos(a) * r), z = Math.round(Math.sin(a) * r), h = 3 + Math.floor(hash2(k, 5) * 9);
-    for (let y = 0; y < h; y++) for (let dx = 0; dx < 3; dx++) cliffs.push([x + dx * 2, -15 + y * 2, z]);
-    if (k % 3 === 0) { trunks.push([x + 2, -15 + h * 2 + 1, z]); for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) leaves.push([x + 2 + dx * 1.2, -15 + h * 2 + 3, z + dz * 1.2]); leaves.push([x + 2, -15 + h * 2 + 4.2, z]); }
+    const x = Math.round(Math.cos(a) * r), z = Math.round(Math.sin(a) * r), h = 3 + Math.floor(hash2(k, 5) * 9), H = h * 2, top = -16 + H;
+    const rock = SkyStyle.roundedBox(6, H, 2, 0.25, 1); rock.translate(x + 2, -16 + H / 2, z);
+    const tint = 0.92 + hash2(k, 6) * 0.14;
+    SkyStyle.paint(rock, (c, px, py) => c.copy(dd).lerp(dl, Math.max(0, Math.min(1, (py + 16) / 18))).multiplyScalar(tint));
+    const cap = SkyStyle.roundedBox(6.4, 0.7, 2.4, 0.2, 1); cap.translate(x + 2, top + 0.1, z);
+    SkyStyle.paint(cap, (c, px, py, pz, nx, ny) => c.copy(ny > 0.5 ? gm : gd));
+    parts.push(rock, cap);
+    if (k % 3 === 0) tree(k, x + 2, top + 0.45, z, 1.7);
   }
-  for (let k = 0; k < 40; k++) { const x = (hash2(k, 11) - 0.5) * 120, z = (hash2(k, 12) - 0.5) * 120; if (Math.hypot(x, z) < 26) continue; trunks.push([x, -14, z]); trunks.push([x, -13, z]); for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) leaves.push([x + dx, -11.5, z + dz]); leaves.push([x, -10.5, z]); }
-  const inst = (arr, mat, s) => { const m = new THREE.InstancedMesh(V.geo.cube, mat, arr.length); const o = new THREE.Object3D(); arr.forEach((p, k) => { o.position.set(p[0], p[1], p[2]); o.scale.setScalar(s); o.updateMatrix(); m.setMatrixAt(k, o.matrix); }); V.scene.add(m); };
-  inst(cliffs, V.mat.grass, 2); inst(trunks, V.mat.trunk, 1); inst(leaves, V.mat.leaf, 1.3);
-  // small decorative floating islands
-  for (let k = 0; k < 5; k++) { const g = new THREE.Group(); const a = k / 5 * Math.PI * 2 + 0.5; g.position.set(Math.cos(a) * 44, 6 + hash2(k, 21) * 10, Math.sin(a) * 44); buildIsland(g, -2, 2, -2, 2, 0, 40 + k); V.scene.add(g); V.decoIslands = (V.decoIslands || []).concat(g); }
+  V.scene.add(toBg(SkyStyle.mesh(SkyStyle.merge(parts))));
+  for (let k = 0; k < 40; k++) { const x = (hash2(k, 11) - 0.5) * 120, z = (hash2(k, 12) - 0.5) * 120; if (Math.hypot(x, z) < 26) continue; tree(k + 3, x, -16, z, 1.9 + hash2(k, 13) * 0.5); }
+  // small decorative floating islands, each with its own trees
+  for (let k = 0; k < 5; k++) { const g = new THREE.Group(); const a = k / 5 * Math.PI * 2 + 0.5; g.position.set(Math.cos(a) * 44, 6 + hash2(k, 21) * 10, Math.sin(a) * 44); g.rotation.y = -a; buildIsland(g, -2, 2, -2, 2, 0, 40 + k); V.scene.add(toBg(g)); V.decoIslands = (V.decoIslands || []).concat(g); }
 }
 function buildRainbow(cx, cy, cz, R, rotY, scale) {
   const cols = ['#ff3b3b', '#ff9a2e', '#ffe23d', '#4fd14f', '#3d8bff', '#5b4bff', '#b04bff'];
@@ -45,7 +47,7 @@ function buildRainbow(cx, cy, cz, R, rotY, scale) {
     const m = new THREE.InstancedMesh(V.geo.cube, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.82, fog: false }), uniq.length);
     const o = new THREE.Object3D(); uniq.forEach((p, i) => { o.position.set(p[0], p[1], 0); o.updateMatrix(); m.setMatrixAt(i, o.matrix); }); g.add(m);
   });
-  V.scene.add(g);
+  V.scene.add(toBg(g));
 }
 // ---- sparkles: little pixel stars for broadcasts, block insertions and arrivals
 function sparkle(pos, color, count = 24, speed = 4, life = 0.9) {
@@ -69,7 +71,7 @@ function initStars() {
   V.stars = []; V.starPts = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ size: 0.55, map: tex, vertexColors: true, transparent: true, depthWrite: false, alphaTest: 0.3 }));
   V.scene.add(V.starPts);
 }
-// coins are coloured by who owns them: a wallet's coins match its owner's hoodie; real-world addresses are muted by type; coinbase is gold
+// coins are coloured by who owns them: a wallet's coins match the colour its owner wears; real-world addresses are muted by type; coinbase is gold
 const REAL_COL = { p2wpkh: '#9db3d6', p2tr: '#b9a8dc', p2pkh: '#cbb999', p2sh: '#c8c08f', p2wsh: '#9fcfae', other: '#b8bcc8' };
 const ownerMats = {};
 function coinMatFor(c) {

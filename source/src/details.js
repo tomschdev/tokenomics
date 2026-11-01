@@ -2,6 +2,7 @@
 const D = { open: null, mode: 'slow', queue: [], cur: null, markers: [], hist: null, reel: { from: 0, to: 0, t: 1 }, hit: 0, sampleT: 0, lastKey: '' };
 function openNode(id) {
   const n = NODE[id]; if (!n) return;
+  if (FOLLOW.on) { followNode(id); return; } // while following, picking a node makes it the featured node
   if (D.open && D.open !== id) NODE[D.open].hist = null;
   D.open = id; S.selected = id; n.hist = new Array(41).fill(0); D.markers = []; D.queue = []; D.cur = null; D.hit = 0; D.lastKey = '';
   $('details').hidden = false; $('stage3d').classList.add('open'); $('dName').innerHTML = `<i style="background:${n.color}"></i>${esc(n.name)}`;
@@ -63,7 +64,7 @@ function drawGauge(dt) {
     if (D.cur.t > 0.55 && !D.cur.sent) { D.cur.sent = true; D.markers.push({ z: D.cur.z, t: 0 }); }
     if (D.cur.t > 1.15) { if (D.cur.z >= S.demoBits) D.hit = 2.5; D.cur = null; } }
   // nonce reels
-  g.font = '11px Silkscreen, monospace'; g.fillStyle = '#9ab0cc'; g.textBaseline = 'top'; g.fillText('1 · TURN THE HANDLE: NEW NONCE (0–100)', 12, 8);
+  g.fillStyle = '#9ab0cc'; g.textBaseline = 'top'; fitText(g, '1 · TURN THE HANDLE: NEW NONCE (0–100)', 12, 8, W - 24, '11px "Pixelify Sans", sans-serif', { lines: 1 });
   const rw = 30, rx0 = 12, ry = 26, rh = 40;
   const nonceHex = String(D.reel.to).padStart(3, '0');
   for (let i = 0; i < 3; i++) {
@@ -75,40 +76,41 @@ function drawGauge(dt) {
     else g.fillText(nonceHex[i], x + rw / 2, ry + 8);
     g.restore();
   }
-  g.textAlign = 'left'; g.font = '12px "JetBrains Mono", monospace'; g.fillStyle = '#cfe0ff';
-  g.fillText(`→ written into the header's nonce field (real field: 0 to 4,294,967,295)`, rx0 + 3 * (rw + 4) + 6, ry + 14);
+  g.textAlign = 'left'; g.fillStyle = '#cfe0ff'; const nx = rx0 + 3 * (rw + 4) + 6;
+  fitText(g, `→ written into the header's nonce field (real field: 0 to 4,294,967,295)`, nx, ry + 4, W - 8 - nx, '12px "Pixelify Sans", sans-serif', { lines: 3, lh: 1.25 });
   // hash output
-  g.font = '11px Silkscreen, monospace'; g.fillStyle = '#9ab0cc'; g.fillText('2 · SHA-256(SHA-256(80-BYTE HEADER))', 12, 78);
+  g.fillStyle = '#9ab0cc'; fitText(g, '2 · SHA-256(SHA-256(80-BYTE HEADER))', 12, 78, W - 24, '11px "Pixelify Sans", sans-serif', { lines: 1 });
   const hx = D.cur && D.cur.t > 0.35 ? D.cur.hex : D.mode === 'fast' && n.last ? n.last.hex : D.cur ? null : (n.last ? n.last.hex : null);
-  g.font = '11.5px "JetBrains Mono", monospace';
-  if (hx) { const z = hx.match(/^0*/)[0]; g.fillStyle = '#ffcf3a'; g.fillText(z, 12, 96); g.fillStyle = '#cfe0ff'; g.fillText(hx.slice(z.length, 46 - z.length + z.length), 12 + g.measureText(z).width, 96); g.fillText('…', 12 + g.measureText(hx.slice(0, 46)).width, 96); }
+  g.font = '15px VT323, monospace';
+  if (hx) { const zh = hx.match(/^0*/)[0].length; [hx.slice(0, 32), hx.slice(32)].forEach((ln, r) => { const zc = Math.max(0, Math.min(32, zh - r * 32)), y = 91 + r * 14;
+    g.fillStyle = '#ffcf3a'; g.fillText(ln.slice(0, zc), 12, y); g.fillStyle = '#cfe0ff'; g.fillText(ln.slice(zc), 12 + g.measureText(ln.slice(0, zc)).width, y); }); }
   else { g.fillStyle = '#4b5f80'; g.fillText('hashing…', 12, 96); }
   // range gauge: each bucket = hashes with exactly z leading zero bits (each one half the size of the last)
-  g.font = '11px Silkscreen, monospace'; g.fillStyle = '#9ab0cc'; g.fillText('3 · WHERE DOES THE HASH LAND?', 12, 118);
-  const B = S.demoBits + 3, gx = 12, gw = W - 24, gy = 140, gh = H - 196, bw = gw / (B + 1);
+  g.fillStyle = '#9ab0cc'; fitText(g, '3 · WHERE DOES THE HASH LAND?', 12, 124, W - 24, '11px "Pixelify Sans", sans-serif', { lines: 1 });
+  const B = S.demoBits + 3, gx = 12, gw = W - 24, gy = 146, gh = H - 202, bw = gw / (B + 1);
   // target band
   const tx0 = gx + S.demoBits * bw;
   g.fillStyle = D.hit > 0 ? `rgba(95,224,124,${0.35 + 0.25 * Math.sin(V.t * 12)})` : 'rgba(95,224,124,.16)'; g.fillRect(tx0, gy - 6, gx + gw - tx0, gh + 6);
   g.strokeStyle = '#5fe07c'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(tx0, gy - 8); g.lineTo(tx0, gy + gh); g.stroke(); g.setLineDash([]);
-  g.fillStyle = '#5fe07c'; g.font = '10px Silkscreen, monospace'; g.fillText('TARGET RANGE', Math.min(tx0 + 4, W - 90), gy - 4);
+  g.fillStyle = '#5fe07c'; g.font = '10px "Pixelify Sans", sans-serif'; g.fillText('TARGET RANGE', Math.min(tx0 + 4, W - 90), gy - 4);
   const counts = n.hist || new Array(41).fill(0); const mx = Math.max(1, ...counts.slice(0, B + 1));
   for (let b = 0; b <= B; b++) {
     const x = gx + b * bw, cnt = b === B ? counts.slice(B).reduce((a, c) => a + c, 0) : counts[b];
     g.fillStyle = '#16243a'; g.fillRect(x + 1, gy + 12, bw - 2, gh - 12);
     const hgt = cnt ? Math.max(3, (Math.log2(cnt + 1) / Math.log2(mx + 1)) * (gh - 26)) : 0;
     g.fillStyle = b >= S.demoBits ? '#5fe07c' : '#4fa3ff'; g.fillRect(x + 2, gy + gh - hgt, bw - 4, hgt);
-    if (cnt && bw > 14) { g.fillStyle = '#cfe0ff'; g.font = '9px "JetBrains Mono", monospace'; g.textAlign = 'center'; g.fillText(cnt > 999 ? Math.round(cnt / 1000) + 'k' : String(cnt), x + bw / 2, gy + gh - hgt - 11); }
-    g.textAlign = 'center'; g.fillStyle = b >= S.demoBits ? '#5fe07c' : '#7f93b0'; g.font = '9px "JetBrains Mono", monospace';
+    if (cnt && bw > 14) { g.fillStyle = '#cfe0ff'; g.font = '12px VT323, monospace'; g.textAlign = 'center'; g.fillText(cnt > 999 ? Math.round(cnt / 1000) + 'k' : String(cnt), x + bw / 2, gy + gh - hgt - 11); }
+    g.textAlign = 'center'; g.fillStyle = b >= S.demoBits ? '#5fe07c' : '#7f93b0'; g.font = '12px VT323, monospace';
     if (bw > 11 || b % 2 === 0) g.fillText(b === B ? b + '+' : String(b), x + bw / 2, gy + gh + 4);
   }
-  g.textAlign = 'left'; g.fillStyle = '#7f93b0'; g.font = '10px "Pixelify Sans", sans-serif';
-  g.fillText('leading zero bits →  each step right is half as likely (log scale of the hash value)', gx, gy + gh + 18);
-  g.fillText(`real network target: ${256 - BigInt('0x' + bitsToTargetHex(S.bits)).toString(2).length} zero bits, ${256 - BigInt('0x' + bitsToTargetHex(S.bits)).toString(2).length - S.demoBits} halvings further right`, gx, gy + gh + 32);
+  g.textAlign = 'left'; g.fillStyle = '#7f93b0'; let cy = gy + gh + 18;
+  cy += fitText(g, 'leading zero bits →  each step right is half as likely (log scale of the hash value)', gx, cy, gw, '10px "Pixelify Sans", sans-serif', { lines: 2 });
+  fitText(g, `real network target: ${256 - BigInt('0x' + bitsToTargetHex(S.bits)).toString(2).length} zero bits, ${256 - BigInt('0x' + bitsToTargetHex(S.bits)).toString(2).length - S.demoBits} halvings further right`, gx, cy, gw, '10px "Pixelify Sans", sans-serif', { lines: 1 });
   // flying markers from the hash readout into their bucket
   D.markers = D.markers.filter(mk => { mk.t += dt; const k = Math.min(1, mk.t / (mk.fast ? 0.35 : 0.55)); const b = Math.min(mk.z, B); const x1 = gx + b * bw + bw / 2, y1 = gy + gh - 8;
     const x = 40 + (x1 - 40) * k, y = 100 + (y1 - 100) * k - Math.sin(k * Math.PI) * 30; g.fillStyle = mk.z >= S.demoBits ? '#5fe07c' : '#ffcf3a'; g.fillRect(x - 3, y - 3, 7, 7); return k < 1; });
-  if (D.hit > 0) { D.hit -= dt; g.fillStyle = 'rgba(14,23,38,.85)'; g.fillRect(W / 2 - 130, gy + 30, 260, 52); g.strokeStyle = '#5fe07c'; g.strokeRect(W / 2 - 130, gy + 30, 260, 52); g.fillStyle = '#5fe07c'; g.font = '16px Silkscreen, monospace'; g.textAlign = 'center'; g.fillText('HIT! HASH < TARGET', W / 2, gy + 40); g.font = '11px "Pixelify Sans", sans-serif'; g.fillText('valid proof-of-work: the block is broadcast', W / 2, gy + 62); g.textAlign = 'left'; }
-  if (!hashing && !D.cur) { g.fillStyle = 'rgba(10,17,28,.7)'; g.fillRect(0, 22, W, 90); g.fillStyle = '#ffe9a6'; g.font = '12px "Pixelify Sans", sans-serif'; g.fillText(n.stage === 'won' ? 'Block found. A new template starts in a moment…' : 'Hashing starts once the block template is built and verified…', 12, 60); }
+  if (D.hit > 0) { D.hit -= dt; g.fillStyle = 'rgba(14,23,38,.85)'; g.fillRect(W / 2 - 140, gy + 30, 280, 56); g.strokeStyle = '#5fe07c'; g.strokeRect(W / 2 - 140, gy + 30, 280, 56); g.fillStyle = '#5fe07c'; g.textAlign = 'center'; fitText(g, 'HIT! HASH < TARGET', W / 2, gy + 38, 264, '16px "Pixelify Sans", sans-serif', { lines: 1 }); fitText(g, 'valid proof-of-work: the block is broadcast', W / 2, gy + 60, 264, '11px "Pixelify Sans", sans-serif', { lines: 2 }); g.textAlign = 'left'; }
+  if (!hashing && !D.cur) { g.fillStyle = 'rgba(10,17,28,.7)'; g.fillRect(0, 22, W, 90); g.fillStyle = '#ffe9a6'; fitText(g, n.stage === 'won' ? 'Block found. A new template starts in a moment…' : 'Hashing starts once the block template is built and verified…', 12, 60, W - 24, '12px "Pixelify Sans", sans-serif', { lines: 2 }); }
 }
 // a hit seen in full-speed mode should still flash
 const _found = found; found = function (m, nonce, hx) { if (m.id === D.open) { D.hit = 2.5; } return _found(m, nonce, hx); };

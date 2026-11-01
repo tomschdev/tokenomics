@@ -105,12 +105,15 @@ function setupNodes(pools) {
   for (const l of LINKS) { l.a.peers.push({ node: l.b, link: l }); l.b.peers.push({ node: l.a, link: l }); }
 }
 function nlog(node, msg, cls = '') { node.log.unshift({ t: clock(), msg, cls }); if (node.log.length > 80) node.log.pop(); if (node.id === S.selected) hoodDirty.log = true; }
+// Timeline: blocks and network events in one newest-first list. Each entry takes a sequence number when it
+// first appears, so block rows and event lines interleave in the order they happened.
+const TL = { seq: 0, blockSeq: new Map(), dirty: false };
 function log(msg, cls = '') {
-  S.log.unshift({ t: clock(), msg, cls }); if (S.log.length > 60) S.log.pop();
-  $('log').innerHTML = S.log.map(e => `<li class="${e.cls}"><time>${e.t}</time>${e.msg}</li>`).join('');
+  S.log.unshift({ t: clock(), msg, cls, seq: ++TL.seq }); if (S.log.length > 60) S.log.pop();
+  renderTimeline();
 }
-const wpTimers = {};
-function wp(n) { const el = $('wp' + n); if (!el) return; el.classList.add('flash'); clearTimeout(wpTimers[n]); wpTimers[n] = setTimeout(() => el.classList.remove('flash'), 1400); }
+// hook: whitepaper §5 step n just happened at some node (the steps board in workers.js wraps this to outline it)
+function wp(n) {}
 
 // send a message along a link; each direction is FIFO so a block never overtakes its parent
 function send(from, to, kind, payload, extraDelay = 0) {
@@ -414,7 +417,7 @@ function found(m, nonce, hashHex) {
   m.stage = 'won'; m.t = 0; m.pendingRebuild = false;
   if (m.hand) { m.engine.status = `★ Block found! Broadcasting #${fmt(blk.height)} to peers.`; m.engine.justWon = blk; }
   for (const p of m.peers) send(m, p.node, 'block', blk, 0.7); // after the throw wind-up
-  renderBlocks();
+  renderTimeline();
 }
 
 // ------------------------------------------------------------ wallets: new txs, double-spend race
@@ -468,11 +471,15 @@ function bestTip() {
   for (const b of BLOCKS.values()) if (!best || workOf(b.hash) > workOf(best.hash) || (workOf(b.hash) === workOf(best.hash) && (b.foundAt || 0) < (best.foundAt || 0))) best = b;
   return best.hash;
 }
-function renderBlocks() {
-  const best = new Set(ancestors(bestTip()));
+function renderTimeline() {
+  TL.dirty = false;
+  const tip = bestTip(), best = new Set(ancestors(tip)), topH = BLOCKS.get(tip).height;
   const list = [...BLOCKS.values()].sort((a, b) => b.height - a.height || (a.foundAt || 0) - (b.foundAt || 0)).slice(0, 14);
-  $('blocks').innerHTML = list.map(b => { const main = best.has(b.hash); const nodesOn = NODES.filter(n => ancestors(n.tip).includes(b.hash)).length;
-    return `<div class="${b.real ? '' : 'sim'} ${main ? '' : 'orphan'}"><span class="mono">#${fmt(b.height)}</span><span>${esc(b.pool)}${b.real ? '' : ' <span class="chip gold">SIM</span>'}${main ? '' : ' <span class="chip bad">' + (b.height >= BLOCKS.get(bestTip()).height ? 'competing' : 'stale') + '</span>'}</span><span class="mono dim">${nodesOn}/${NODES.length} nodes</span></div>`; }).join('');
+  for (const b of [...list].reverse()) if (!TL.blockSeq.has(b.hash)) TL.blockSeq.set(b.hash, ++TL.seq);
+  const blocks = list.map(b => { const main = best.has(b.hash); const nodesOn = NODES.filter(n => ancestors(n.tip).includes(b.hash)).length;
+    return { seq: TL.blockSeq.get(b.hash), html: `<li class="blk${b.real ? '' : ' sim'}${main ? '' : ' orphan'}"><span class="mono">#${fmt(b.height)}</span><span>${esc(b.pool)}${b.real ? '' : ' <span class="chip gold">SIM</span>'}${main ? '' : ' <span class="chip bad">' + (b.height >= topH ? 'competing' : 'stale') + '</span>'}</span><span class="mono dim">${nodesOn}/${NODES.length} nodes</span></li>` }; });
+  const events = S.log.map(e => ({ seq: e.seq, html: `<li class="ev ${e.cls}"><time>${e.t}</time>${e.msg}</li>` }));
+  $('timeline').innerHTML = blocks.concat(events).sort((a, b) => b.seq - a.seq).map(r => r.html).join('');
 }
 
 // ------------------------------------------------------------ live data
@@ -533,7 +540,7 @@ function realBlocksArrived(raw, confirmed, quiet) {
     log(`Real network: block #${fmt(tip.height)} mined by ${esc(tip.pool)}. It carries ~2^${tip.zbits} work versus 2^${S.demoBits} for each simulated block, so every node reorgs onto it (most cumulative work).`, 'gold');
     marquee(`REAL BLOCK #${fmt(tip.height)} BY ${tip.pool.toUpperCase()} · ALL NODES REORG ONTO IT`, '#57e4ff');
   }
-  renderBlocks(); renderStats(); setupVerifyReal();
+  renderTimeline(); renderStats(); setupVerifyReal();
 }
 function applyLive(d, label) {
   S.source = 'live'; S.fetchedAt = new Date().toISOString();

@@ -1,0 +1,551 @@
+
+
+<title>Bitcoin Skymine</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap">
+<style>
+/* Layout: one pixel-art sky world (canvas) on top, a dark "server rack" console below it:
+   the timeline on the left, the real-tip hash check on the right (Satoshi's six steps live on a board in the scene).
+   Deliberately single-theme: the console is a night-blue rack, the scene is daytime sky. */
+:root{
+  --rack:#0e1726; --panel:#152338; --panel-2:#1b2d47; --line:#2b4466;
+  --text:#e9f1ff; --muted:#9ab0cc; --led-red:#ff5468; --led-cyan:#57e4ff;
+  --gold:#ffcf3a; --ok:#5fe07c; --bad:#ff6161; --sky:#62b9ff;
+  --f-display:"Pixelify Sans",system-ui,sans-serif;
+  --f-body:"Pixelify Sans",system-ui,sans-serif;
+  --f-mono:"VT323",ui-monospace,monospace;
+  --f-led:"VT323",ui-monospace,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--rack);color:var(--text)}
+body{font:15px/1.5 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 40px}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:14px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;text-wrap:balance;margin:0;letter-spacing:.02em}
+h1{font-size:clamp(18px,2.6vw,26px)}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:1.3em;line-height:1;font-variant-numeric:tabular-nums}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;justify-content:space-between}
+.top p{margin:2px 0 0;color:var(--muted);max-width:70ch}
+.src{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-display);font-size:11px;padding:6px 10px;border:2px solid var(--line);background:var(--panel)}
+.src i{width:9px;height:9px;background:var(--gold);display:inline-block}
+.src.live i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.stage{position:relative;border:3px solid #000;box-shadow:0 0 0 2px var(--line);background:#5fb4ff;line-height:0}
+canvas{width:100%;aspect-ratio:16/9;display:block;image-rendering:pixelated;cursor:pointer}
+.controls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--panel);border:2px solid var(--line);padding:10px 12px}
+button{font:12px var(--f-display);color:var(--text);background:var(--panel-2);border:2px solid var(--line);border-bottom-color:#081120;border-right-color:#081120;padding:7px 11px;cursor:pointer}
+button:hover{background:#24395a}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button.primary{background:#2c5b2f;border-color:#4b9a4f #173518 #173518 #4b9a4f}
+button.warn{background:#5a2330;border-color:#9a4553 #2e0f16 #2e0f16 #9a4553}
+button[disabled]{opacity:.5;cursor:default}
+label.ctl{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+label.ctl output{font-family:var(--f-mono);font-size:17px;color:var(--text);min-width:4.5ch}
+input[type=range]{accent-color:var(--gold);width:110px}
+.grid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:2px solid var(--line);padding:14px;min-width:0;display:grid;gap:12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{display:flex;align-items:center;gap:8px}
+.tab i{width:10px;height:10px;display:inline-block}
+.tab[aria-selected=true]{background:#2a4166;border-color:var(--gold)}
+.stages{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+@media (max-width:560px){.stages{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.stg{font:10px/1.25 var(--f-display);padding:7px 6px;background:var(--panel-2);border:2px solid var(--line);color:var(--muted);min-width:0}
+.stg b{display:block;font-size:11px;color:var(--text);margin-bottom:2px}
+.stg.on{border-color:var(--gold);background:#3a3216;color:#ffe9a6}
+.stg.done{border-color:#2f6e3c}
+.box{background:#0b1422;border:2px solid #22385a;padding:10px;min-width:0}
+.box h3{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{text-align:left;padding:4px 8px 4px 0;white-space:nowrap;border-bottom:1px solid #1d2f4b}
+th{font:10px var(--f-display);color:var(--muted);letter-spacing:.05em}
+td.num,th.num{text-align:right}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)} .dim{color:var(--muted)}
+.chip{font:10px var(--f-display);padding:1px 5px;border:1px solid currentColor}
+.hdr{display:flex;flex-wrap:wrap;gap:3px;font-family:var(--f-mono);font-size:16px}
+.hf{padding:5px 6px;border:2px solid;min-width:0;word-break:break-all}
+.hf small{display:block;font:9px var(--f-display);letter-spacing:.04em;margin-bottom:2px;opacity:.9}
+.hf.v{border-color:#7b8cff;color:#c3caff}.hf.p{border-color:#b480ff;color:#dcc4ff;flex:1 1 240px}.hf.m{border-color:#57e4ff;color:#bff4ff;flex:1 1 240px}
+.hf.t{border-color:#ffb55a;color:#ffdcae}.hf.b{border-color:#ff7fb6;color:#ffc6df}.hf.n{border-color:var(--gold);color:var(--gold);background:#2a2410}
+.cmp{display:grid;gap:3px;font-family:var(--f-mono);font-size:16px}
+.cmp div{display:grid;grid-template-columns:7.5em minmax(0,1fr);gap:8px;align-items:baseline}
+.cmp span:last-child{word-break:break-all}
+.cmp em{font-style:normal;color:var(--gold);background:#2a2410}
+.verdict{font:12px var(--f-display);padding:8px 10px;border:2px solid var(--line);background:var(--panel-2)}
+.verdict.hit{border-color:var(--ok);background:#163b22;color:#c6ffd3}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;font-size:13px}
+.kv div{min-width:0}.kv span{display:block;font:10px var(--f-display);color:var(--muted);letter-spacing:.04em}
+.kv b{font-family:var(--f-mono);font-weight:400;font-size:17px;overflow-wrap:anywhere}
+.merkle{display:grid;gap:4px;font-family:var(--f-mono);font-size:14px}
+.mrow{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+.mrow span{padding:2px 5px;border:1px solid #2e4a72;background:#122038}
+.mrow span.cb{border-color:var(--gold);color:var(--gold)}
+.mrow.root span{border-color:#57e4ff;color:#bff4ff;background:#0f2a3a}
+.check button{justify-self:start}
+.check .vnote{margin:0}
+.tl-note{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.timeline{display:grid;gap:3px;font-size:13px;max-height:460px;overflow:auto;margin:0;padding:0;list-style:none}
+.timeline .blk{display:grid;grid-template-columns:5.5em minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:4px 6px;background:#101c2e}
+.timeline .blk.sim{border-left:3px solid var(--gold)}
+.timeline .blk.orphan{opacity:.5;text-decoration:line-through}
+.timeline .ev{font-size:12px;line-height:1.4;padding:2px 6px 2px 10px;margin-left:8px;border-left:2px solid var(--line)}
+.timeline .ev time{font-family:var(--f-mono);font-size:14px;color:var(--muted);margin-right:6px}
+.notes{font-size:14px;color:var(--muted);display:grid;gap:6px}
+.notes p{margin:0;max-width:95ch}
+.notes b{color:var(--text);font-weight:600}
+.live-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#liveMsg{font-size:13px;color:var(--muted)}
+
+
+[hidden]{display:none!important}
+.stage3d{position:relative;border:3px solid #000;box-shadow:0 0 0 2px var(--line);background:#7cc6ff;line-height:0;overflow:hidden}
+#cv3{display:block;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
+.mq{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(520px,70%);height:40px;background:#0b0d12;border:3px solid #3a4150;box-shadow:0 0 0 3px #20242e;overflow:hidden;line-height:40px;cursor:pointer}
+.mq::after{content:"";position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px),linear-gradient(rgba(0,0,0,.35) 1px,transparent 1px);background-size:3px 3px}
+#mq{display:inline-block;white-space:nowrap;font:24px var(--f-led);color:var(--led-cyan);padding-left:100%;animation:mq 14s linear infinite}
+@keyframes mq{to{transform:translateX(-100%)}}
+@media (prefers-reduced-motion:reduce){#mq{animation:none;padding-left:8px}}
+.stage3d.open .hint,.stage3d.open #bHelp{display:none}
+.hint .lg i{display:inline-block;width:8px;height:8px;margin:0 3px 0 6px}
+#bHelp{position:absolute;left:10px;bottom:10px;line-height:1;padding:5px 10px;font-size:15px;font-weight:700;background:rgba(14,23,38,.85)}
+#bHelp[aria-expanded=true]{border-color:var(--gold);color:var(--gold)}
+.hint{position:absolute;left:10px;bottom:48px;max-width:min(430px,60%);line-height:1.4;font:11px var(--f-display);color:#0b1e33;background:rgba(255,255,255,.7);padding:5px 8px;pointer-events:none}
+.chips{position:absolute;left:10px;top:60px;display:flex;flex-direction:column;gap:4px;line-height:1.2}
+.chips button{display:flex;align-items:center;gap:6px;font-size:11px;padding:5px 8px;background:rgba(14,23,38,.85)}
+.chips i{width:10px;height:10px;display:inline-block}
+.cam{position:absolute;right:10px;top:60px;display:flex;gap:6px;line-height:1.2}
+#bFollow[aria-pressed=true]{background:#3a3216;border-color:var(--gold);color:#ffe9a6}
+.details{position:absolute;top:60px;right:10px;bottom:10px;width:min(800px,62%);overflow:auto;line-height:1.45;background:rgba(14,23,38,.94);border:2px solid var(--gold);padding:12px;display:grid;gap:10px;align-content:start}
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:12px;align-items:start}
+@media (max-width:1100px){.dgrid{grid-template-columns:minmax(0,1fr)}.details{width:min(440px,50%)}}
+@media (max-width:900px){.details{position:static;width:auto;border-width:2px 0 0;max-height:none}.chips{top:auto;bottom:40px;flex-direction:row;flex-wrap:wrap;right:10px}.cam{top:auto;bottom:10px}.hint{bottom:auto;top:60px}}
+.dhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#dName{font:700 15px var(--f-display);display:flex;align-items:center;gap:8px}
+#dName i{width:12px;height:12px;display:inline-block}
+#dStage{margin:0;font-size:14px;color:#ffe9a6}
+.details h4{margin:0 0 6px;font:11px var(--f-display);color:var(--gold);letter-spacing:.06em;text-transform:uppercase}
+.outline{border:2px solid #2b4466;background:#0a111c}
+.outline .lbl{font:10px var(--f-display);color:#9ab0cc;padding:4px 8px;background:#152338;border-bottom:1px solid #2b4466;display:flex;justify-content:space-between}
+.hrow,.txr{display:grid;grid-template-columns:6.8em minmax(0,1fr);gap:0 8px;padding:3px 8px;border-bottom:1px solid #16243a;font-size:12.5px}
+.hrow span,.txr span{color:#9ab0cc;font-size:11.5px}
+.hrow b,.txr b{font-family:var(--f-mono);font-weight:400;font-size:16px;overflow-wrap:anywhere}
+.hrow small,.txr small{grid-column:2;color:#7f93b0;font-size:11.5px}
+.hrow.nonce{background:#2a2410}.hrow.nonce b{color:var(--gold)}
+.hrow.mk b{color:#9feeff}
+.txr.cb b{color:var(--gold)}
+.txr.ghost{opacity:.35}.txr.now{background:#163b22}
+.txr.more,.txr.sum{color:#9ab0cc;font-size:12px}
+.arrow{font:10px var(--f-display);color:#9feeff;padding:4px 8px;text-align:center}
+#dSig{font-size:16px;background:#0f2416;border:1px solid #23543a;padding:8px;font-family:var(--f-mono);overflow-wrap:anywhere}
+#dCv{width:100%;height:auto;aspect-ratio:auto;display:block;border:2px solid #22385a}
+.dctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#dMode{display:inline-flex}
+#dMode button[aria-pressed=true]{background:#3a3216;border-color:var(--gold)}
+#dStats{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:#9ab0cc}
+#dStats b{color:var(--text);font-family:var(--f-mono);font-size:1.3em;font-weight:400}
+.chip.dsA{color:#ff6b8f}.chip.dsB{color:#d78bff}.chip.bad{color:var(--bad)}
+/* click-to-learn note: overlaid in the canvas frame, bottom-right (over the details panel's corner when one is open, so it never hides the focused node) */
+.src{cursor:pointer}
+.note{position:absolute;right:10px;bottom:10px;box-sizing:border-box;width:min(340px,calc(100% - 80px));max-height:calc(100% - 80px);overflow:auto;line-height:1.4;font-size:12.5px;background:rgba(14,23,38,.95);border:2px solid var(--led-cyan);padding:7px 10px 8px;display:grid;gap:4px;align-content:start}
+.note .nhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.note h3{font-size:12px;color:var(--led-cyan);letter-spacing:.04em}
+.note .nhead button{padding:1px 8px;line-height:1.3}
+.note p{margin:0;color:#cfe0ff}
+.note .nfull{justify-self:start;font:11px var(--f-display);color:var(--muted)}
+.note .nfull:hover{color:var(--led-cyan)}
+@media (max-width:900px){.note,.stage3d.open .note{top:60px;bottom:auto;left:10px;right:10px;width:auto;max-height:calc(100% - 120px)}}
+.vnote{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+.vnote b{color:var(--gold);font-weight:600}
+.essay summary{cursor:pointer}
+.essay summary h2{display:inline}
+.essay[open] summary{margin-bottom:12px}
+</style>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>bitcoin skymine</h1>
+      <p>Four real mining pools, each a glass cube holding its own copy of the UTXO state, with a pool of transactions, a tower of blocks and a worker who builds, checks and cranks each candidate block by hand. Click a node to look closer.</p>
+    </div>
+    <button class="src" id="srcChip" title="Where the data comes from"><i></i><span id="srcText">Snapshot</span></button>
+  </header>
+
+  <div class="stage3d" id="stage3d" aria-label="3D scene: four node cubes, each holding its UTXO state as small cubes joined by thin coin threads, with a pool of transactions in front and a tower of blocks on top. Drag to orbit, scroll to zoom, click a node for details.">
+    <div class="mq" id="mqBox" role="marquee" aria-label="Network ticker (click for a note)" tabindex="0" title="What is this ticker?"><span id="mq">LOADING…</span></div>
+    <div class="chips" id="nodeChips"></div>
+    <div class="cam"><button id="bFollow" aria-pressed="false" title="Walk the camera through Satoshi's six steps with one node">Follow along</button><button id="bOverview">Overview</button></div>
+    <button id="bHelp" aria-expanded="false" aria-controls="hint" aria-label="Controls and colour key" title="Controls and colour key">?</button>
+    <div class="hint" id="hint" hidden>Drag to orbit · scroll to zoom · click a node, or a person on the wallet platform · click any object (or the ticker) for a short note<br><span class="lg"><i style="background:#d33b3b"></i><i style="background:#2e63c9;margin-left:0"></i><i style="background:#e6c229;margin-left:0"></i>a wallet's coins match the colour its owner wears <i style="background:#9db3d6"></i>real-world addresses <i style="background:#ffcf3a"></i>coinbase</span><br>Small cubes = coins (UTXOs), grouped by address, sized by value. Threads = where each coin came from; dotted = in a block not yet mined (green once checked).</div>
+    <aside class="details" id="details" hidden aria-label="Node details">
+      <div class="dhead"><span id="dName"></span><button id="dClose" aria-label="Close node details">Close</button></div>
+      <p id="dStage"></p>
+      <div class="dgrid"><div>
+        <h4>The block being hashed</h4>
+        <div class="outline">
+          <div class="lbl"><span>HEADER · 80 BYTES · this is what gets hashed</span></div>
+          <div id="dHdr"></div>
+          <div class="arrow">▲ merkle root summarises ▼</div>
+          <div class="lbl"><span>BODY · transactions</span></div>
+          <div id="dBody"></div>
+        </div>
+      <div id="dSig" hidden style="margin-top:8px"></div></div>
+      <div>
+        <h4>Spin the nonce · hash · does it hit the target range?</h4>
+        <canvas id="dCv" width="400" height="360"></canvas>
+      <div class="dctl" style="margin-top:8px">
+        <label class="ctl" for="cFreeze"><input id="cFreeze" type="checkbox" checked> Pause the other pools</label>
+      </div>
+      <div id="dStats" style="margin-top:6px"></div></div></div>
+    </aside>
+    <aside class="note" id="note" hidden aria-live="polite" aria-labelledby="noteTitle">
+      <div class="nhead"><h3 id="noteTitle"></h3><button id="noteClose" aria-label="Close note">×</button></div>
+      <div id="noteBody"></div>
+      <a class="nfull" id="noteFull" href="#fullNotes">Full notes ↓</a>
+    </aside>
+  </div>
+
+  <div class="controls">
+    <button id="bPlay" class="primary">Pause</button>
+    <label class="ctl" for="rSpeed">Speed <input id="rSpeed" type="range" min="0" max="6" step="1" value="3"><output id="oSpeed">1×</output></label>
+    <label class="ctl" for="rBits">Demo target <input id="rBits" type="range" min="1" max="10" step="1" value="5"><output id="oBits">5 bits</output></label>
+    <button id="bRace" class="warn">Start a double-spend race</button>
+    <div class="live-row"><button id="bLive" hidden>Pull live data</button><span id="liveMsg"></span></div>
+  </div>
+
+  <div class="grid">
+    <section class="panel" aria-label="Timeline">
+      <div><h2>Timeline</h2><p class="tl-note">Newest first. Each block row shows how many nodes have that block in their tower; network events sit between the blocks.</p></div>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+    <aside class="panel check" aria-label="Check the real chain tip">
+      <h2>Check: hash the real tip in your browser</h2>
+      <div class="kv" id="verifyReal"></div>
+      <button id="bVerify">Hash block header</button>
+      <p class="vnote"><b>Real:</b> SHA-256 is a full implementation; this button reproduces the real tip's block hash by hashing its 80-byte header in your browser.</p>
+    </aside>
+  </div>
+
+  <section class="panel" aria-label="What is real and what is modeled">
+   <details class="essay" id="fullNotes">
+    <summary><h2>Full notes: what's real and what's scaled down</h2></summary>
+    <div class="notes">
+    <p><b>Real:</b> the chain tip and its parents, the four pools and their 1-week share of blocks, network hashrate, difficulty and nBits. The 28 starting transactions are real mempool transactions, carried as their raw bytes with the coins they spend. Your browser recomputes every txid and verifies every signature: legacy and SegWit ECDSA (with the legacy and BIP143 sighash) and Taproot Schnorr (BIP340/BIP341), plus the check that each public key hashes to the locking script. SHA-256 is a full implementation; the button above reproduces the real tip's block hash.</p>
+    <p><b>Simulated, but real format:</b> when the real transactions are mined, simulated wallets keep sending. Each simulated transaction is a genuine P2WPKH transaction, signed with the wallet's own secp256k1 key and verified exactly like the real ones. It spends coins those wallets hold, including outputs of earlier simulated blocks. Coinbases are serialized for real, and their txids and the merkle roots are computed for real.</p>
+    <p><b>The node cubes:</b> each cube is that node's own view of the UTXO set: every coin it knows about, placed by the address (locking script) that owns it and sized by its value. When a block is connected, the coins its transactions spend disappear and the new outputs appear, with a thin thread from each spent coin to each new one; the coinbase threads start at the gold mint at the top. A node on a losing fork briefly shows a different state until it reorgs.</p>
+    <p><b>Network model:</b> each node keeps its own mempool and checks every transaction against its own chain tip before passing it on. Signature results are cached, as Bitcoin Core does. Double-spends follow full RBF: first seen wins unless the newcomer pays enough more. Nodes follow the branch with the most cumulative work, so forks and reorgs happen naturally and show up in each node's tower.</p>
+    <p><b>Scaled down:</b> the real target needs about <span class="mono" id="realZeros">78</span> leading zero bits (roughly 6 × 10<sup>23</sup> hashes per block). Here each turn of a worker's handle is one real SHA-256d of the full 80-byte header, with the nonce limited to 0–100 for illustration (the real field runs to about 4.3 billion). When 0–100 is used up, the worker changes the extranonce in the coinbase, which gives a new merkle root, and starts again at 0. A block counts when its hash has at least the demo target of leading zero bits (5 by default; adjustable). Bigger pools turn their handle faster, in proportion to their share of hashrate. The header still carries the real nBits. Blocks hold up to 12,000 weight units instead of 4,000,000. Script-path Taproot, multisig and other script types are not verified by this page; none appear in the snapshot.</p>
+    <p><b>Live data:</b> opened as a standalone .html file, the page fetches mempool.space directly and polls for new real blocks; every node then reorgs onto the real chain because it carries vastly more work. Inside the Claude desktop app, “Pull live data” uses the app's browser.</p>
+    <p><b>Reading the scene:</b> the worker opens the candidate block, lets transactions stream in from the pool, checks each one on the clipboard, then hashes the txids into a merkle root; the gold cord ties the block to the hash of the previous block. Each turn of the handle writes a new nonce; the readout prints the hash (leading zeros in gold) and the column counts its leading zero bits against the target line. Pool transactions are coloured by fee rate: pale blue under 1 sat/vB, green 1–2, yellow 2–5, orange 5 and up; a double-spend pair is pink and purple. In each tower the newest block sits on the cube and older ones stack above it, then … for the blocks not shown and G, the genesis block (#0); the grey blocks are the real chain tip and its parents, and a reorged block tips off the stack. In a cube, dotted threads belong to the block being built (green once checked); a wallet's coins match the colour its owner wears, real-world addresses are muted by script type and coinbase coins are gold; each cube draws at most its newest 320 coins. Twelve simulated wallets stand on the wallet platform; click a person to flash their coins red in every cube. The LED ticker rotates each node's mempool size and the real network stats; the chip in the header says whether the page runs on the built-in snapshot or on live data.</p>
+    <p><b>The whitepaper §5 board:</b> Satoshi's six steps for running the network. Each lights up when it happens on screen: the step the node named on the board is doing now is lit gold and marked NOW, a step that just happened at any node gets a grey outline, and the line under the steps says what that node is doing. “Follow along” walks the camera through the steps with one node. <b>§5 also:</b> nodes always consider the chain with the most proof-of-work to be the correct one. If two blocks arrive at once, nodes work on the first one they received but keep the other in case its branch grows longer. <b>§4 proof-of-work:</b> increment a nonce until the block's hash falls below a target. The average work grows exponentially with the zero bits required, and anyone can verify it with one hash. <b>§2 transactions:</b> each owner transfers a coin by digitally signing a hash of the previous transaction and the next owner's public key. Nodes check those signatures.</p>
+    </div>
+   </details>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ==========================================================================================
+   SkyStyle — the graphics system. Self-contained (needs only global THREE r128), so it can be
+   pasted into the Sky Mine as one block. Look: soft, painterly 3D shading rendered at low
+   resolution and colour-banded, so every edge steps like pixel art.
+   ========================================================================================== */
+const SkyStyle = (() => {
+  const PAL = {
+    skyTop: '#3d82d4', skyLow: '#86bff0', haze: '#9cccf3',
+    grassLight: '#9ad468', grass: '#6db64c', grassDark: '#3f8a3c',
+    dirtLight: '#c99a74', dirt: '#ad7d5f', dirtDeep: '#8a6058', dirtShade: '#6a4c52',
+    trunk: '#7a5236', trunkDark: '#4f3426',
+    leafLight: '#93d064', leaf: '#5fa84a', leafDark: '#2f7840',
+    cloud: '#ffffff', cloudShade: '#bcd5f0',
+    sun: '#fff1d8', skyFill: '#eef7ff', bounce: '#8fb0dc'
+  };
+  const C = h => new THREE.Color(h);
+
+  // Deterministic random numbers from a seed (mulberry32)
+  function rng(seed) { let a = (seed >>> 0) || 1; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // Box with rounded edges and true rounded normals: catches a highlight on every edge
+  function roundedBox(w, h, d, r, seg = 2) {
+    const k = 2 * seg + 1, g = new THREE.BoxGeometry(2, 2, 2, k, k, k);
+    const p = g.attributes.position, n = g.attributes.normal, H = [w / 2, h / 2, d / 2], v = new THREE.Vector3();
+    r = Math.min(r, H[0], H[1], H[2]);
+    for (let j = 0; j < p.count; j++) {
+      const c = [p.getX(j), p.getY(j), p.getZ(j)], inner = [], o = [];
+      for (let a = 0; a < 3; a++) { const i = Math.round((c[a] + 1) / 2 * k), lo = i <= seg; inner[a] = (lo ? -1 : 1) * (H[a] - r); o[a] = lo ? -(1 - i / seg) : (i - seg - 1) / seg; }
+      v.set(o[0], o[1], o[2]); if (v.lengthSq() < 1e-9) v.set(0, 1, 0); v.normalize();
+      p.setXYZ(j, inner[0] + v.x * r, inner[1] + v.y * r, inner[2] + v.z * r); n.setXYZ(j, v.x, v.y, v.z);
+    }
+    g.deleteAttribute('uv');
+    return g;
+  }
+  // Per-vertex colour from a function of (position, normal)
+  function paint(geo, f) {
+    const p = geo.attributes.position, n = geo.attributes.normal, out = new Float32Array(p.count * 3), col = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { f(col, p.getX(i), p.getY(i), p.getZ(i), n.getX(i), n.getY(i), n.getZ(i)); out[i * 3] = col.r; out[i * 3 + 1] = col.g; out[i * 3 + 2] = col.b; }
+    geo.setAttribute('color', new THREE.BufferAttribute(out, 3)); return geo;
+  }
+  // Merge many painted geometries into one (position, normal, color)
+  function merge(geos) {
+    let vc = 0, ic = 0;
+    for (const g of geos) { vc += g.attributes.position.count; ic += g.index ? g.index.count : g.attributes.position.count; }
+    const pos = new Float32Array(vc * 3), nor = new Float32Array(vc * 3), col = new Float32Array(vc * 3), idx = new Uint32Array(ic);
+    let vo = 0, io = 0;
+    for (const g of geos) {
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, vo * 3); nor.set(g.attributes.normal.array, vo * 3);
+      if (g.attributes.color) col.set(g.attributes.color.array, vo * 3); else col.fill(1, vo * 3, (vo + n) * 3);
+      if (g.index) { const a = g.index.array; for (let i = 0; i < a.length; i++) idx[io + i] = a[i] + vo; io += a.length; }
+      else { for (let i = 0; i < n; i++) idx[io + i] = vo + i; io += n; }
+      vo += n; g.dispose();
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    out.setIndex(new THREE.BufferAttribute(idx, 1)); out.computeBoundingSphere(); return out;
+  }
+  const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  const cloudMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, emissive: C('#6f93c0'), emissiveIntensity: 0.32 });
+  function mesh(geo, mat = solid, shadows = true) { const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = shadows; return m; }
+
+  // Speckled grass texture for the cap (hard texels so it reads as pixels)
+  let grassTex;
+  function grassTexture() {
+    if (grassTex) return grassTex;
+    const s = 24, cv = document.createElement('canvas'); cv.width = cv.height = s; const g = cv.getContext('2d'), R = rng(99);
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) { const r = R(); g.fillStyle = r < 0.06 ? PAL.grassLight : r > 0.84 ? '#5ea248' : PAL.grass; g.fillRect(x, y, 1, 1); }
+    grassTex = new THREE.CanvasTexture(cv); grassTex.magFilter = grassTex.minFilter = THREE.NearestFilter; return grassTex;
+  }
+
+  /* ---------- Tree: thin tapered trunk, blobby canopy shaded dark underneath, light on top ---------- */
+  function makeTree(seed, { height = 1.25 } = {}) {
+    const R = rng(seed), parts = [], lean = (R() - 0.5) * 0.12, m4 = new THREE.Matrix4();
+    const trunk = new THREE.CylinderGeometry(0.09, 0.14, height, 7, 3); trunk.deleteAttribute('uv');
+    trunk.translate(0, height / 2, 0); trunk.applyMatrix4(m4.makeRotationZ(lean));
+    paint(trunk, (c, x, y, z, nx) => c.copy(C(PAL.trunkDark)).lerp(C(PAL.trunk), Math.min(1, y / height + 0.2 - nx * 0.25)));
+    parts.push(trunk);
+    const top = height + 0.25, tx = -Math.sin(lean) * height, s = 0.9 + R() * 0.25;
+    const blobs = [[0, top + 0.22, 0, 0.6]];
+    const n = 5 + Math.floor(R() * 3);
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + R() * 0.6, d = 0.34 + R() * 0.18; blobs.push([Math.cos(a) * d, top + (R() - 0.35) * 0.4, Math.sin(a) * d, 0.36 + R() * 0.16]); }
+    blobs.push([(R() - 0.5) * 0.3, top + 0.62, (R() - 0.5) * 0.3, 0.38]);
+    const lo = top - 0.45, hi = top + 1.05, light = C(PAL.leafLight), mid = C(PAL.leaf), dark = C(PAL.leafDark);
+    for (const [x, y, z, r] of blobs) {
+      const g = new THREE.SphereGeometry(r * s, 12, 9); g.deleteAttribute('uv'); g.translate(tx + x * s, y, z * s);
+      const tint = 0.94 + R() * 0.1;
+      paint(g, (c, px, py, pz, nx, ny) => { const t = Math.max(0, Math.min(1, (py - lo) / (hi - lo))); (t < 0.5 ? c.copy(dark).lerp(mid, t * 2) : c.copy(mid).lerp(light, (t - 0.5) * 2)); c.multiplyScalar(tint * (0.92 + ny * 0.08)); });
+      parts.push(g);
+    }
+    const grp = new THREE.Group(); grp.add(mesh(merge(parts))); grp.userData.kind = 'tree'; return grp;
+  }
+
+  /* ---------- Grass tuft: a few tall leaning blades, dark at the root, bright at the tip ---------- */
+  function makeGrassTuft(seed) {
+    const R = rng(seed), parts = [], m4 = new THREE.Matrix4(), e = new THREE.Euler();
+    const n = 6 + Math.floor(R() * 4), base = C(PAL.grassDark), tip = C(PAL.grassLight);
+    for (let i = 0; i < n; i++) {
+      const len = 0.7 + R() * 0.65, g = new THREE.ConeGeometry(0.06, len, 4, 3); g.deleteAttribute('uv');
+      g.translate(0, len / 2, 0);
+      e.set((R() - 0.5) * 0.7, R() * Math.PI, (R() - 0.5) * 0.7); g.applyMatrix4(m4.makeRotationFromEuler(e));
+      g.translate((R() - 0.5) * 0.35, 0, (R() - 0.5) * 0.35);
+      paint(g, (c, x, y) => c.copy(base).lerp(tip, Math.min(1, y / 1.1)));
+      parts.push(g);
+    }
+    const grp = new THREE.Group(); grp.add(mesh(merge(parts))); grp.userData.kind = 'tuft'; return grp;
+  }
+
+  /* ---------- Island: grass cap with a ragged drip edge over chunky earth blocks that step down to a point ----------
+     w x d cells of 1 unit (or size x size). The grass surface sits at userData.top above the group origin.
+     decor: true adds two trees and grass like the reference; spots: [{x, z, kind:'tree'|'tuft', s}] places them instead. */
+  function makeIsland(seed, { size = 6, w, d, decor = true, spots = null, maxDepth } = {}) {
+    const R = rng(seed), NX = w || size, NZ = d || size, N = Math.min(NX, NZ), hx = NX / 2, hz = NZ / 2, grp = new THREE.Group();
+    const earth = [], drips = [], seg = N > 8 ? 1 : 2;
+    const MD = maxDepth || Math.min(N * 0.8, 9), rings = Math.max(2, Math.floor((N - 1) / 2));
+    const dl = C(PAL.dirtLight), dm = C(PAL.dirt), dd = C(PAL.dirtDeep), ds = C(PAL.dirtShade);
+    // earth depth per column: shallow at the rim, deeper ring by ring toward the middle
+    const D = [];
+    for (let ix = 0; ix < NX; ix++) { D[ix] = []; for (let iz = 0; iz < NZ; iz++) { const edge = Math.min(ix, NX - 1 - ix, iz, NZ - 1 - iz); D[ix][iz] = Math.min(MD, MD * (0.25 + 0.475 * Math.min(edge, rings) / rings) + R() * 0.55); } }
+    const dAt = (ix, iz) => (ix < 0 || iz < 0 || ix >= NX || iz >= NZ) ? -1 : D[ix][iz];
+    for (let ix = 0; ix < NX; ix++) for (let iz = 0; iz < NZ; iz++) {
+      const depth = D[ix][iz], cx = ix - hx + 0.5, cz = iz - hz + 0.5, rim = ix === 0 || iz === 0 || ix === NX - 1 || iz === NZ - 1;
+      const nMin = Math.min(dAt(ix - 1, iz), dAt(ix + 1, iz), dAt(ix, iz - 1), dAt(ix, iz + 1));
+      let y0 = 0;
+      while (y0 < depth - 0.05) {
+        let h = [0.8, 1.1, 1.4, 1.7][Math.floor(R() * 4)]; if (y0 + h > depth) h = depth - y0; if (h < 0.3) break;
+        const wd = 1.0 + R() * 0.05, push = rim ? R() * 0.13 : 0, jx = (R() - 0.5) * 0.06, jz = (R() - 0.5) * 0.06, tint = 0.93 + R() * 0.12;
+        const y1 = y0 + h, last = y1 >= depth - 0.05;
+        if (rim || last || nMin < y1) { // skip blocks buried inside the island
+          const px = ix === 0 ? -push : ix === NX - 1 ? push : 0, pz = iz === 0 ? -push : iz === NZ - 1 ? push : 0;
+          const g = roundedBox(wd, h - 0.03, wd, 0.07, seg);
+          g.translate(cx + px + jx, -(y0 + h / 2), cz + pz + jz);
+          paint(g, (c, x, y, z, nx, ny) => {
+            const t = Math.min(1, -y / MD);
+            if (t < 0.35) c.copy(dl).lerp(dm, t / 0.35); else if (t < 0.75) c.copy(dm).lerp(dd, (t - 0.35) / 0.4); else c.copy(dd).lerp(ds, (t - 0.75) / 0.25);
+            c.multiplyScalar(tint * (ny < -0.5 ? 0.82 : 1));
+          });
+          earth.push(g);
+        }
+        y0 = y1;
+      }
+    }
+    // grass cap, slightly wider than the earth so it overhangs
+    const capW = NX + 0.16, capD = NZ + 0.16, capH = 0.42, capTop = 0.3;
+    const cap = roundedBox(capW, capH, capD, 0.12, 3), cp = cap.attributes.position;
+    const uv = new Float32Array(cp.count * 2);
+    for (let i = 0; i < cp.count; i++) { uv[i * 2] = cp.getX(i) / capW + 0.5; uv[i * 2 + 1] = cp.getZ(i) / capD + 0.5 + cp.getY(i) * 0.8; }
+    cap.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    cap.translate(0, capTop - capH / 2, 0);
+    paint(cap, (c, x, y, z, nx, ny) => c.setScalar(ny > 0.6 ? 0.92 : 0.76));
+    const capTex = grassTexture().clone(); capTex.needsUpdate = true; capTex.wrapS = capTex.wrapT = THREE.RepeatWrapping; capTex.repeat.set(NX / 6, NZ / 6);
+    const capMesh = mesh(cap, new THREE.MeshStandardMaterial({ map: capTex, vertexColors: true, roughness: 1, metalness: 0 }));
+    // drip edge: short grass tongues of random length hanging over each side
+    const gm = C(PAL.grass), gd = C(PAL.grassDark), dripTop = capTop - capH + 0.08;
+    for (let side = 0; side < 4; side++) {
+      const along = side < 2 ? hx : hz, o = (side < 2 ? capD : capW) / 2 - 0.03;
+      for (let t = -along + 0.12; t < along - 0.05; t += 0.2 + R() * 0.12) {
+        const L = 0.08 + Math.pow(R(), 2.2) * 0.5, wdt = 0.18 + R() * 0.14;
+        const g = roundedBox(wdt, L, 0.1, 0.045, 1), y = dripTop - L / 2;
+        if (side === 0) g.translate(t, y, o); else if (side === 1) g.translate(t, y, -o);
+        else { g.rotateY(Math.PI / 2); g.translate(side === 2 ? o : -o, y, t); }
+        paint(g, (c, x, py) => c.copy(gm).lerp(gd, Math.min(1, (dripTop - py) / 0.55)));
+        drips.push(g);
+      }
+    }
+    grp.add(mesh(merge(earth))); grp.add(capMesh); grp.add(mesh(merge(drips)));
+    grp.userData = { kind: 'island', top: capTop, w: NX, d: NZ };
+    let list = spots;
+    if (!list && decor) {
+      const back = -hz * 0.45, half = hx;
+      list = [{ x: -half * 0.45, z: back - 0.2, kind: 'tree', h: 1.15 + R() * 0.3 }, { x: -half * 0.45 + 1.05, z: back - 0.55, kind: 'tree', h: 0.95 + R() * 0.25, s: 0.85 },
+              { x: half * 0.45, z: back - 0.3, kind: 'tuft' }, { x: half * 0.6, z: back + 0.2, kind: 'tuft', s: 0.6 }];
+    }
+    (list || []).forEach((p, i) => {
+      const o = p.kind === 'tuft' ? makeGrassTuft(seed * 7 + 3 + i) : makeTree(seed * 7 + 1 + i, { height: p.h || 1.2 });
+      if (p.s) o.scale.setScalar(p.s); o.position.set(p.x, capTop, p.z); grp.add(o);
+    });
+    return grp;
+  }
+
+  /* ---------- Cloud: overlapping puffs with a flat, blue-shaded belly ---------- */
+  function makeCloud(seed, { width = 5 } = {}) {
+    const R = rng(seed), parts = [], n = 6 + Math.floor(R() * 4);
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1) - 0.5, r = (0.75 + (1 - Math.abs(u) * 1.6) * 0.75 + R() * 0.35) * width / 5;
+      const g = new THREE.SphereGeometry(r, 14, 10); g.deleteAttribute('uv'); g.scale(1, 0.78, 1);
+      g.translate(u * width + (R() - 0.5) * 0.4, r * 0.35 + R() * 0.25, (R() - 0.5) * width * 0.18);
+      parts.push(g);
+    }
+    const geo = merge(parts), p = geo.attributes.position;
+    let hi = -1e9, floor = 1e9; for (let i = 0; i < p.count; i++) { hi = Math.max(hi, p.getY(i)); floor = Math.min(floor, p.getY(i)); }
+    const top = C(PAL.cloud), shade = C(PAL.cloudShade), col = geo.attributes.color;
+    for (let i = 0; i < p.count; i++) { const c = shade.clone().lerp(top, Math.min(1, Math.pow((p.getY(i) - floor) / (hi - floor), 0.7) * 1.25)); col.setXYZ(i, c.r, c.g, c.b); }
+    const grp = new THREE.Group(); grp.add(mesh(geo, cloudMat, false)); grp.userData.kind = 'cloud'; return grp;
+  }
+
+  /* ---------- Sky, light rig and the pixel pipeline ---------- */
+  function makeSky(scene) {
+    scene.background = null; scene.fog = new THREE.Fog(PAL.haze, 22, 70);
+  }
+  function makeLights(scene) {
+    const hemi = new THREE.HemisphereLight(PAL.skyFill, PAL.bounce, 0.72); hemi.layers.enableAll(); scene.add(hemi);
+    const sun = new THREE.DirectionalLight(PAL.sun, 0.9);
+    sun.layers.enableAll(); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 60 });
+    sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+    scene.add(sun, sun.target);
+    return {
+      hemi, sun,
+      aim(azDeg, elDeg, target = new THREE.Vector3(), dist = 25) { const a = azDeg * Math.PI / 180, e = elDeg * Math.PI / 180; sun.position.set(Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)).multiplyScalar(dist).add(target); sun.target.position.copy(target); },
+      shadowDepth(f) { hemi.intensity = 0.5 + (1 - f) * 0.5; sun.intensity = 0.7 + f * 0.45; }
+    };
+  }
+  // Render at 1/px resolution, band the colours, then scale up with hard pixel edges. Pixel size 1 = off.
+  // bgLayer: objects on that layer are the background and render at their own pixel size (setBgPixel), while
+  //   everything on layer 0 stays sharp; depth is shared so either can hide the other, and shadows span both.
+  // overlayLayer: objects there (text sprites) are drawn last, sharp, on top of everything.
+  function makePixelPipeline(renderer, { overlayLayer = 0, bgLayer = 0 } = {}) {
+    // pixel size 1: render slightly above screen resolution with 8x multisampling, filtered down
+    const makeRT = ms => { const f = ms ? THREE.LinearFilter : THREE.NearestFilter, o = { minFilter: f, magFilter: f }; if (ms && THREE.WebGLMultisampleRenderTarget && renderer.capabilities.isWebGL2) { const t = new THREE.WebGLMultisampleRenderTarget(2, 2, o); t.samples = 8; return t; } return new THREE.WebGLRenderTarget(2, 2, o); };
+    let rt = makeRT(false), rtMS = false;
+    const bgRT = new THREE.WebGLRenderTarget(2, 2, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    // background look: blurred up from its pixel size (no crawl when the camera moves), hazed toward the sky and
+    // slightly desaturated so the sharp foreground stands out. Written with alpha 0.5 so the final pass leaves it unbanded.
+    const bgMat = new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: bgRT.texture }, texel: { value: new THREE.Vector2(0.5, 0.5) }, spread: { value: 1.25 }, mist: { value: 0.38 }, desat: { value: 0.3 },
+        skyTop: { value: C(PAL.skyTop) }, skyLow: { value: C(PAL.skyLow) }, haze: { value: C(PAL.haze) } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse; uniform vec2 texel; uniform float spread, mist, desat; uniform vec3 skyTop, skyLow, haze; varying vec2 vUv;',
+        'vec4 tap(vec2 o){ return texture2D(tDiffuse, vUv + o * texel * spread); }',
+        'void main(){',
+        '  vec4 s = tap(vec2(0.0)) * 0.25 + (tap(vec2(1.0, 0.0)) + tap(vec2(-1.0, 0.0)) + tap(vec2(0.0, 1.0)) + tap(vec2(0.0, -1.0))) * 0.125',
+        '         + (tap(vec2(1.0, 1.0)) + tap(vec2(-1.0, 1.0)) + tap(vec2(1.0, -1.0)) + tap(vec2(-1.0, -1.0))) * 0.0625;',
+        '  vec3 sky = mix(haze, skyLow, smoothstep(0.0, 0.3, vUv.y)); sky = mix(sky, skyTop, smoothstep(0.3, 1.0, vUv.y));',
+        '  vec3 c = s.rgb + sky * (1.0 - s.a);',
+        '  float l = dot(c, vec3(0.299, 0.587, 0.114));',
+        '  c = mix(c, vec3(l), desat * s.a);',
+        '  c = mix(c, mix(haze, sky, 0.5), mist * s.a);',
+        '  gl_FragColor = vec4(c, 0.5);',
+        '}'].join('\n'),
+      depthTest: false, depthWrite: false
+    });
+    const bgQuad = new THREE.Scene(); bgQuad.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat));
+    const tiny = new THREE.WebGLRenderTarget(1, 1), depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: rt.texture }, levels: { value: 16 }, bgMode: { value: bgLayer ? 1 : 0 }, skyTop: { value: C(PAL.skyTop) }, skyLow: { value: C(PAL.skyLow) }, haze: { value: C(PAL.haze) } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse; uniform float levels, bgMode; uniform vec3 skyTop, skyLow, haze; varying vec2 vUv;',
+        'void main(){',
+        '  vec4 s = texture2D(tDiffuse, vUv); vec3 c = s.rgb;',
+        '  if (levels > 1.5 && (bgMode < 0.5 || s.a > 0.99)) c = floor(c * (levels - 1.0) + 0.5) / (levels - 1.0);',
+        '  vec3 sky = mix(haze, skyLow, smoothstep(0.0, 0.3, vUv.y)); sky = mix(sky, skyTop, smoothstep(0.3, 1.0, vUv.y));',
+        '  gl_FragColor = vec4(bgMode > 0.5 ? c : c + sky * (1.0 - s.a), 1.0);',
+        '}'].join('\n'),
+      depthTest: false, depthWrite: false
+    });
+    const qs = new THREE.Scene(), qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); qs.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+    let px = 4, bgPx = 4, W = 2, H = 2; renderer.setClearColor(0x000000, 0);
+    return {
+      setSize(w, h) {
+        W = w; H = h; renderer.setSize(w, h, false);
+        const k = px <= 1 ? Math.min(2, renderer.getPixelRatio() * 1.5) : 1 / px;
+        rt.setSize(Math.max(2, Math.floor(w * k)), Math.max(2, Math.floor(h * k)));
+        const bw = Math.max(2, Math.floor(w / bgPx)), bh = Math.max(2, Math.floor(h / bgPx)); bgRT.setSize(bw, bh); bgMat.uniforms.texel.value.set(1 / bw, 1 / bh);
+      },
+      setPixel(p, w = W, h = H) { const ms = p <= 1; if (ms !== rtMS) { rt.dispose(); rt = makeRT(ms); rtMS = ms; mat.uniforms.tDiffuse.value = rt.texture; } px = p; this.setSize(w, h); },
+      setBgPixel(p) { bgPx = Math.max(1, p); this.setSize(W, H); },
+      setBands(n) { mat.uniforms.levels.value = n; },
+      setBgSoftness({ spread, mist, desat } = {}) { const u = bgMat.uniforms; if (spread != null) u.spread.value = spread; if (mist != null) u.mist.value = mist; if (desat != null) u.desat.value = desat; },
+      render(scene, cam) {
+        const mask = cam.layers.mask;
+        if (bgLayer) {
+          const sm = renderer.shadowMap;
+          // 1. shadows from every layer, once per frame (rendered into a 1x1 target, only the shadow map matters)
+          sm.autoUpdate = false; sm.needsUpdate = true; cam.layers.enableAll(); renderer.setRenderTarget(tiny); renderer.render(scene, cam);
+          // 2. the background alone, at its own pixel size
+          cam.layers.set(bgLayer); renderer.setRenderTarget(bgRT); renderer.render(scene, cam);
+          // 3. main target: the soft background (with sky), then its depth at full size, then the sharp foreground
+          renderer.setRenderTarget(rt); renderer.clear(); renderer.autoClear = false;
+          renderer.render(bgQuad, qc);
+          scene.overrideMaterial = depthOnly; renderer.render(scene, cam); scene.overrideMaterial = null;
+          cam.layers.mask = mask; renderer.render(scene, cam);
+          renderer.autoClear = true;
+        } else { renderer.setRenderTarget(rt); renderer.render(scene, cam); }
+        renderer.setRenderTarget(null); renderer.render(qs, qc);
+        if (overlayLayer) { cam.layers.set(overlayLayer); renderer.autoClear = false; renderer.clearDepth(); renderer.render(scene, cam); renderer.autoClear = true; }
+        cam.layers.mask = mask;
+      }
+    };
+  }
+
+  return { PAL, rng, roundedBox, paint, merge, mesh, makeIsland, makeTree, makeGrassTuft, makeCloud, makeSky, makeLights, makePixelPipeline };
+})();
+</script>
+<script>
+/*__JS__*/
+
+</script>
+
+

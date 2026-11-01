@@ -18,3 +18,4 @@ incentivefactory/broadcast/
 # Optional
 .env
 .env.local
+source/dist/
