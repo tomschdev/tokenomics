@@ -1,2 +1,2 @@
 # tokenomics
-A repository for experimentation with simulation of token economies
+A repository for experimentation, visualisation and simulation of token economies
