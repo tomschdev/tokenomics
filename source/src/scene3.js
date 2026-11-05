@@ -116,7 +116,8 @@ function initScene() {
   let rq = 0; new ResizeObserver(() => { cancelAnimationFrame(rq); rq = requestAnimationFrame(resize3); }).observe(wrap); resize3();
   const ov = overviewView(); camera.position.copy(ov.pos); controls.target.copy(ov.target);
 }
-function resize3() { if (V.wrap.clientWidth === V.lastW) return; V.lastW = V.wrap.clientWidth; const w = V.wrap.clientWidth, h = Math.round(w * (w < 700 ? 0.9 : 9 / 16)); V.pipe.setSize(w, h); V.renderer.domElement.style.width = w + 'px'; V.renderer.domElement.style.height = h + 'px'; V.camera.aspect = w / h; V.camera.updateProjectionMatrix(); }
+// with the menu hidden the stage is fixed to the viewport, so the canvas takes the stage's full height
+function resize3() { const w = V.wrap.clientWidth, h = V.wrap.closest('.menu-off') ? V.wrap.clientHeight : Math.round(w * (w < 700 ? 0.9 : 9 / 16)); if (w + 'x' + h === V.lastSize) return; V.lastSize = w + 'x' + h; V.pipe.setSize(w, h); V.renderer.domElement.style.width = w + 'px'; V.renderer.domElement.style.height = h + 'px'; V.camera.aspect = w / h; V.camera.updateProjectionMatrix(); }
 
 function buildClouds() {
   V.clouds = [];

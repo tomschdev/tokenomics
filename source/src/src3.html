@@ -103,14 +103,19 @@ td.num,th.num{text-align:right}
 [hidden]{display:none!important}
 .stage3d{position:relative;border:3px solid #000;box-shadow:0 0 0 2px var(--line);background:#7cc6ff;line-height:0;overflow:hidden}
 #cv3{display:block;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
-.mq{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(520px,70%);height:40px;background:#0b0d12;border:3px solid #3a4150;box-shadow:0 0 0 3px #20242e;overflow:hidden;line-height:40px;cursor:pointer}
+.mq{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(520px,70%);height:40px;background:#0b0d12;border:3px solid #3a4150;box-shadow:0 0 0 3px #20242e;overflow:hidden;line-height:40px;text-align:center}
 .mq::after{content:"";position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px),linear-gradient(rgba(0,0,0,.35) 1px,transparent 1px);background-size:3px 3px}
-#mq{display:inline-block;white-space:nowrap;font:24px var(--f-led);color:var(--led-cyan);padding-left:100%;animation:mq 14s linear infinite}
-@keyframes mq{to{transform:translateX(-100%)}}
-@media (prefers-reduced-motion:reduce){#mq{animation:none;padding-left:8px}}
+#mq{white-space:nowrap;font:24px/40px var(--f-led);color:var(--led-cyan);text-shadow:0 0 8px var(--led-cyan)}
 .stage3d.open .hint,.stage3d.open #bHelp{display:none}
 .hint .lg i{display:inline-block;width:8px;height:8px;margin:0 3px 0 6px}
-#bHelp{position:absolute;left:10px;bottom:10px;line-height:1;padding:5px 10px;font-size:15px;font-weight:700;background:rgba(14,23,38,.85)}
+.wrap.menu-off>:not(.stage3d){display:none}
+.wrap.menu-off .stage3d{position:fixed;inset:0;border:0;box-shadow:none;overflow:auto}
+#bMenu,#bHelp{position:absolute;bottom:10px;width:32px;height:32px;padding:0;display:grid;place-items:center;background:rgba(14,23,38,.85)}
+#bMenu{left:10px}
+#bMenu svg{width:18px;height:18px;display:block}
+#bMenu .i-close,#bMenu[aria-expanded=true] .i-open{display:none}
+#bMenu[aria-expanded=true] .i-close{display:block}
+#bHelp{left:48px;line-height:1;font-size:15px;font-weight:700}
 #bHelp[aria-expanded=true]{border-color:var(--gold);color:var(--gold)}
 .hint{position:absolute;left:10px;bottom:48px;max-width:min(430px,60%);line-height:1.4;font:11px var(--f-display);color:#0b1e33;background:rgba(255,255,255,.7);padding:5px 8px;pointer-events:none}
 .chips{position:absolute;left:10px;top:60px;display:flex;flex-direction:column;gap:4px;line-height:1.2}
@@ -163,7 +168,7 @@ td.num,th.num{text-align:right}
 .essay summary h2{display:inline}
 .essay[open] summary{margin-bottom:12px}
 </style>
-<div class="wrap">
+<div class="wrap menu-off" id="wrap">
   <header class="top">
     <div>
       <h1>bitcoin skymine</h1>
@@ -173,9 +178,10 @@ td.num,th.num{text-align:right}
   </header>
 
   <div class="stage3d" id="stage3d" aria-label="3D scene: four node cubes, each holding its UTXO state as small cubes joined by thin coin threads, with a pool of transactions in front and a tower of blocks on top. Drag to orbit, scroll to zoom, click a node for details.">
-    <div class="mq" id="mqBox" role="marquee" aria-label="Network ticker (click for a note)" tabindex="0" title="What is this ticker?"><span id="mq">LOADING…</span></div>
+    <div class="mq" id="mqBox"><span id="mq">bitcoin skymine</span></div>
     <div class="chips" id="nodeChips"></div>
     <div class="cam"><button id="bFollow" aria-pressed="false" title="Walk the camera through Satoshi's six steps with one node">Follow along</button><button id="bOverview">Overview</button></div>
+    <button id="bMenu" aria-expanded="false" aria-label="Show info and controls" title="Show info and controls"><svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M12 11v6M12 7v.5"/></svg><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M13 5h6v6M11 19H5v-6"/></svg></button>
     <button id="bHelp" aria-expanded="false" aria-controls="hint" aria-label="Controls and colour key" title="Controls and colour key">?</button>
     <div class="hint" id="hint" hidden>Drag to orbit · scroll to zoom · click a node, or a person on the wallet platform · click any object (or the ticker) for a short note<br><span class="lg"><i style="background:#d33b3b"></i><i style="background:#2e63c9;margin-left:0"></i><i style="background:#e6c229;margin-left:0"></i>a wallet's coins match the colour its owner wears <i style="background:#9db3d6"></i>real-world addresses <i style="background:#ffcf3a"></i>coinbase</span><br>Small cubes = coins (UTXOs), grouped by address, sized by value. Threads = where each coin came from; dotted = in a block not yet mined (green once checked).</div>
     <aside class="details" id="details" hidden aria-label="Node details">
@@ -237,7 +243,7 @@ td.num,th.num{text-align:right}
     <p><b>Network model:</b> each node keeps its own mempool and checks every transaction against its own chain tip before passing it on. Signature results are cached, as Bitcoin Core does. Double-spends follow full RBF: first seen wins unless the newcomer pays enough more. Nodes follow the branch with the most cumulative work, so forks and reorgs happen naturally and show up in each node's tower.</p>
     <p><b>Scaled down:</b> the real target needs about <span class="mono" id="realZeros">78</span> leading zero bits (roughly 6 × 10<sup>23</sup> hashes per block). Here each turn of a worker's handle is one real SHA-256d of the full 80-byte header, with the nonce limited to 0–100 for illustration (the real field runs to about 4.3 billion). When 0–100 is used up, the worker changes the extranonce in the coinbase, which gives a new merkle root, and starts again at 0. A block counts when its hash has at least the demo target of leading zero bits (5 by default; adjustable). Bigger pools turn their handle faster, in proportion to their share of hashrate. The header still carries the real nBits. Blocks hold up to 12,000 weight units instead of 4,000,000. Script-path Taproot, multisig and other script types are not verified by this page; none appear in the snapshot.</p>
     <p><b>Live data:</b> opened as a standalone .html file, the page fetches mempool.space directly and polls for new real blocks; every node then reorgs onto the real chain because it carries vastly more work. Inside the Claude desktop app, “Pull live data” uses the app's browser.</p>
-    <p><b>Reading the scene:</b> the worker opens the candidate block, lets transactions stream in from the pool, checks each one on the clipboard, then hashes the txids into a merkle root; the gold cord ties the block to the hash of the previous block. Each turn of the handle writes a new nonce; the readout prints the hash (leading zeros in gold) and the column counts its leading zero bits against the target line. Pool transactions are coloured by fee rate: pale blue under 1 sat/vB, green 1–2, yellow 2–5, orange 5 and up; a double-spend pair is pink and purple. In each tower the newest block sits on the cube and older ones stack above it, then … for the blocks not shown and G, the genesis block (#0); the grey blocks are the real chain tip and its parents, and a reorged block tips off the stack. In a cube, dotted threads belong to the block being built (green once checked); a wallet's coins match the colour its owner wears, real-world addresses are muted by script type and coinbase coins are gold; each cube draws at most its newest 320 coins. Twelve simulated wallets stand on the wallet platform; click a person to flash their coins red in every cube. The LED ticker rotates each node's mempool size and the real network stats; the chip in the header says whether the page runs on the built-in snapshot or on live data.</p>
+    <p><b>Reading the scene:</b> the worker opens the candidate block, lets transactions stream in from the pool, checks each one on the clipboard, then hashes the txids into a merkle root; the gold cord ties the block to the hash of the previous block. Each turn of the handle writes a new nonce; the readout prints the hash (leading zeros in gold) and the column counts its leading zero bits against the target line. Pool transactions are coloured by fee rate: pale blue under 1 sat/vB, green 1–2, yellow 2–5, orange 5 and up; a double-spend pair is pink and purple. In each tower the newest block sits on the cube and older ones stack above it, then … for the blocks not shown and G, the genesis block (#0); the grey blocks are the real chain tip and its parents, and a reorged block tips off the stack. In a cube, dotted threads belong to the block being built (green once checked); a wallet's coins match the colour its owner wears, real-world addresses are muted by script type and coinbase coins are gold; each cube draws at most its newest 320 coins. Twelve simulated wallets stand on the wallet platform; click a person to flash their coins red in every cube. The chip in the header says whether the page runs on the built-in snapshot or on live data.</p>
     <p><b>The whitepaper §5 board:</b> Satoshi's six steps for running the network. Each lights up when it happens on screen: the step the node named on the board is doing now is lit gold and marked NOW, a step that just happened at any node gets a grey outline, and the line under the steps says what that node is doing. “Follow along” walks the camera through the steps with one node. <b>§5 also:</b> nodes always consider the chain with the most proof-of-work to be the correct one. If two blocks arrive at once, nodes work on the first one they received but keep the other in case its branch grows longer. <b>§4 proof-of-work:</b> increment a nonce until the block's hash falls below a target. The average work grows exponentially with the zero bits required, and anyone can verify it with one hash. <b>§2 transactions:</b> each owner transfers a coin by digitally signing a hash of the previous transaction and the next owner's public key. Nodes check those signatures.</p>
     </div>
    </details>

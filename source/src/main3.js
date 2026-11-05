@@ -2,15 +2,6 @@
 const hoodDirty = {}; function engineReset() {} function buildTabs() {}
 const MQ = { text: '', color: '#57e4ff', t: 99, queue: [], idle: 0, stats: [] };
 function marquee(t, c) { MQ.queue.push({ text: t, color: c }); if (MQ.queue.length > 4) MQ.queue.shift(); }
-function tickMarquee(dt) {
-  MQ.t += dt;
-  if (MQ.t > 7 && MQ.queue.length) { const q = MQ.queue.shift(); MQ.text = q.text; MQ.color = q.color; MQ.t = 0; const el = $('mq'); el.textContent = q.text; el.style.color = q.color; el.style.textShadow = `0 0 8px ${q.color}`; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; }
-  else if (MQ.t > 9 && !MQ.queue.length) { // idle: rotate the node mempools and each network stat, one per message
-    const k = MQ.idle++ % (MQ.stats.length + 1);
-    if (k === 0) marquee(`MEMPOOLS: ${NODES.map(n => n.name.toUpperCase() + ' ' + n.mempool.size).join(' · ')}`, '#ff5468');
-    else marquee(MQ.stats[k - 1].join(' '), '#57e4ff');
-  }
-}
 function renderStats() {
   const tip = S.realTip;
   // network stats live in the LED ticker rotation as [label, value]
@@ -76,7 +67,6 @@ function frame(ts) {
     updateParticles(); maybeArrivals(dtSim);
   }
   render3(dtReal, dtSim);
-  tickMarquee(dtReal);
   if (TL.dirty) renderTimeline();
   if (D.open) { drawGauge(dtReal); uiT += dtReal; if (uiT > 0.1) { uiT = 0; renderDetails(false); } }
   requestAnimationFrame(frame);
@@ -94,8 +84,8 @@ $('bHelp').onclick = () => { const h = $('hint'); h.hidden = !h.hidden; $('bHelp
 $('dClose').onclick = closeNode;
 $('noteClose').onclick = hideNote;
 $('noteFull').onclick = e => { e.preventDefault(); const d = $('fullNotes'); d.open = true; d.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); };
-$('mqBox').onclick = $('srcChip').onclick = () => showNote('ticker');
-$('mqBox').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showNote('ticker'); } };
+$('srcChip').onclick = () => showNote('ticker');
+$('bMenu').onclick = () => { const off = $('wrap').classList.toggle('menu-off'), b = $('bMenu'), t = off ? 'Show info and controls' : 'Hide info and controls'; b.setAttribute('aria-expanded', !off); b.setAttribute('aria-label', t); b.title = t; };
 window.onTipChanged = () => { TL.dirty = true; }; // a node switching tip changes the timeline's x/4 counts
 window.onHash = (m, nonce, hx, z) => { detailsOnHash(m, nonce, hx, z); if (window.sceneOnHash) sceneOnHash(m, nonce, hx, z); };
 $('cFreeze').onchange = e => { S.freeze = e.target.checked; };
